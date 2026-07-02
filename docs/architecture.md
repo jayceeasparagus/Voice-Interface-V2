@@ -17,6 +17,9 @@ Planned responsibilities:
 - SR80 support later
 - optional noise filtering or background chatter handling
 
+The first implementation listens through ALSA, uses VAD to split long pauses
+into utterances, and optionally gates output behind a wake word.
+
 ## LLM
 
 The LLM module turns text into intent.

@@ -22,6 +22,25 @@ Audio
 Processes speech into text. This is where microphone input, Moonshine
 speech-to-text, and future SR80 audio features belong.
 
+Current audio entry point:
+
+```sh
+python3 -m audio.listener
+```
+
+Wake word is controlled in `audio/config.py`:
+
+```python
+WAKE_WORD_ENABLED = True
+WAKE_WORD = "dog"
+```
+
+For testing without a wake word:
+
+```sh
+python3 -m audio.listener --no-wake-word
+```
+
 `llm/`
 
 Processes text into intent. This is where Liquid AI should eventually run.
