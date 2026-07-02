@@ -37,9 +37,7 @@ WAKE_WORD = "dog"
 
 For testing without a wake word:
 
-```sh
-python3 -m audio.listener --no-wake-word
-```
+set `WAKE_WORD_ENABLED = False` in `audio/config.py`, then run the listener again.
 
 `llm/`
 

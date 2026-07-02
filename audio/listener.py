@@ -1,4 +1,3 @@
-import argparse
 import json
 import re
 import subprocess
@@ -245,11 +244,7 @@ class AudioListener:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Listen and print speech text.")
-    parser.add_argument("--no-wake-word", action="store_true")
-    args = parser.parse_args()
-
-    listener = AudioListener(wake_word_enabled=not args.no_wake_word)
+    listener = AudioListener(wake_word_enabled=config.WAKE_WORD_ENABLED)
     listener.run()
 
 
