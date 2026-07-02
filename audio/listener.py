@@ -1,15 +1,34 @@
 import json
+import os
 import re
 import subprocess
 import time
 
 import numpy as np
 import onnxruntime
-from huggingface_hub import hf_hub_download
+import requests
 from silero_vad import VADIterator, load_silero_vad
 from tokenizers import Tokenizer
 
 from audio import config
+
+
+def download_model_file(repo_id, filename):
+    local_path = os.path.join("models", repo_id, filename)
+    if os.path.exists(local_path):
+        return local_path
+
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    url = "https://huggingface.co/{}/resolve/main/{}".format(repo_id, filename)
+
+    print("Downloading:", url)
+    response = requests.get(url, timeout=60)
+    response.raise_for_status()
+
+    with open(local_path, "wb") as file:
+        file.write(response.content)
+
+    return local_path
 
 
 def normalize_text(text):
@@ -25,19 +44,19 @@ class MoonshineSTT:
         self.config_repo = "UsefulSensors/moonshine-{}".format(model)
         self.onnx_repo = "UsefulSensors/moonshine"
 
-        model_config_path = hf_hub_download(
+        model_config_path = download_model_file(
             repo_id=self.config_repo,
             filename="config.json",
         )
-        tokenizer_path = hf_hub_download(
+        tokenizer_path = download_model_file(
             repo_id=self.config_repo,
             filename="tokenizer.json",
         )
-        encoder_path = hf_hub_download(
+        encoder_path = download_model_file(
             repo_id=self.onnx_repo,
             filename="onnx/merged/{}/quantized/encoder_model.onnx".format(model),
         )
-        decoder_path = hf_hub_download(
+        decoder_path = download_model_file(
             repo_id=self.onnx_repo,
             filename="onnx/merged/{}/quantized/decoder_model_merged.onnx".format(model),
         )
