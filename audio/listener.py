@@ -133,8 +133,9 @@ class MoonshineSTT:
 
 
 class AudioListener:
-    def __init__(self, wake_word_enabled=config.WAKE_WORD_ENABLED):
+    def __init__(self, wake_word_enabled=config.WAKE_WORD_ENABLED, handler=None):
         self.wake_word_enabled = wake_word_enabled
+        self.handler = handler
         self.awake = False
         self.stt = MoonshineSTT()
         self.vad_model = load_silero_vad(onnx=True)
@@ -228,6 +229,9 @@ class AudioListener:
         print("HEARD:", text)
         output_text = self.apply_wake_word(text)
         if output_text:
+            if self.handler is not None:
+                self.handler(output_text)
+                return
             print("TEXT:", output_text, flush=True)
 
     def apply_wake_word(self, text):

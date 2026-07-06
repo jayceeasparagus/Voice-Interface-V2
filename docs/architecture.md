@@ -65,6 +65,12 @@ Planned responsibilities:
 - timeout/retry behavior
 - future wireless option if needed
 
+Current behavior:
+
+- sends `go2_function_call_batch` JSON over TCP
+- waits for a dog response
+- supports wired and wireless host settings in `transport/config.py`
+
 ## Dog
 
 The dog module receives and executes commands.
@@ -76,3 +82,11 @@ Planned responsibilities:
 - posture commands
 - movement commands
 - stop/release behavior
+
+Current behavior:
+
+- listens for function-call batches on TCP port 5005
+- supports `--message-only` testing with no movement
+- rejects invalid function calls
+- executes valid commands through the tested V1 SportClient/ObstacleClient pattern
+- calls stand before sit by default for safer posture transitions

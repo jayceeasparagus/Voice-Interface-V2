@@ -1,0 +1,15 @@
+[Unit]
+Description=Voice Interface V2 Board Pipeline
+After=network.target
+
+[Service]
+Type=simple
+Environment=APP_DIR=/home/aicps/Voice-Interface-V2
+WorkingDirectory=/home/aicps/Voice-Interface-V2
+ExecStartPre=/bin/sh /home/aicps/Voice-Interface-V2/scripts/board_set_wired_ip.sh
+ExecStart=/bin/sh /home/aicps/Voice-Interface-V2/scripts/board_start_voice.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

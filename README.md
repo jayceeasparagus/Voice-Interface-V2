@@ -88,9 +88,24 @@ Unknown commands are marked invalid instead of being sent as robot actions.
 Sends validated function calls from the board to the dog, likely over the
 working Ethernet link.
 
+Current transport test:
+
+```sh
+python3 -m transport.sender sit --host 10.42.0.1
+```
+
 `dog/`
 
 Receives function calls and executes them on the Unitree Go2.
+
+Current dog receiver:
+
+```sh
+python3 -m dog.receiver --message-only
+python3 -m dog.receiver
+```
+
+Use `--message-only` to test networking without moving the dog.
 
 `docs/`
 
@@ -99,3 +114,39 @@ Design notes, planning, and setup notes.
 `tests/`
 
 Future tests for each module.
+
+## End-to-End Testing
+
+Board dry-run, no microphone and no dog:
+
+```sh
+python3 main.py --debug "sit then walk forward" --dry-run
+```
+
+Dog-side message-only receiver, no movement:
+
+```sh
+python3 -m dog.receiver --message-only
+```
+
+Board sends a typed command to the dog receiver:
+
+```sh
+python3 main.py --debug "sit then walk forward"
+```
+
+Live microphone pipeline:
+
+```sh
+python3 main.py
+```
+
+## Service Templates
+
+Service templates live in `scripts/`:
+
+- `board-voice.service`
+- `dog-voice.service`
+
+The board service configures `eth0` as `10.42.0.2` and runs `main.py`.
+The dog service configures `eth0` as `10.42.0.1` and runs `dog.receiver`.
