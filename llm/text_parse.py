@@ -3,7 +3,10 @@ import re
 import subprocess
 import sys
 
-from llm.text_split import split_text
+try:
+    from llm.text_split import split_text
+except ModuleNotFoundError:
+    from text_split import split_text
 
 
 LLAMA_CLI_PATH = "/home/aicps/liquid_test/llama.cpp/build/bin/llama-cli"
@@ -24,83 +27,107 @@ ALLOWED_ACTIONS = {
     "unknown",
 }
 
-MODEL_ALIASES = {
-    "forward": "walk_forward",
-    "backward": "walk_backward",
-    "left": "walk_left",
-    "right": "walk_right",
+ACTION_NORMALIZATION = {
+    "set": "sit",
+    "seat": "sit",
+    "sid": "sit",
+    "sit_down": "sit",
+    "set_down": "sit",
+    "standup": "stand",
+    "stand_up": "stand",
+    "get_up": "stand",
+    "standdown": "stand_down",
+    "stay_down": "stand_down",
+    "lay_down": "stand_down",
+    "lie_down": "stand_down",
+    "stopped": "stop",
+    "stock": "stop",
+    "freeze": "stop",
+    "halt": "stop",
+    "go_forward": "walk_forward",
+    "move_forward": "walk_forward",
+    "walk_straight": "walk_forward",
+    "go_straight": "walk_forward",
+    "move_straight": "walk_forward",
+    "go_backward": "walk_backward",
+    "move_backward": "walk_backward",
+    "back_up": "walk_backward",
+    "move_left": "walk_left",
+    "step_left": "walk_left",
+    "move_right": "walk_right",
+    "step_right": "walk_right",
     "turn_left": "rotate_left",
+    "look_left": "rotate_left",
     "turn_right": "rotate_right",
-    "turn left": "rotate_left",
-    "turn right": "rotate_right",
+    "look_right": "rotate_right",
 }
 
 
-def normalize_text(text):
+def build_prompt(text):
+    return """Map the input to one action.
+
+Input: {}
+
+Output only one string from this list:
+sit
+stand
+stand_down
+stop
+walk_forward
+walk_backward
+walk_left
+walk_right
+rotate_left
+rotate_right
+recover
+unknown
+
+The input is from speech-to-text and may have mistakes.
+Map likely speech mistakes to the closest valid action.
+If the input is unclear, output unknown.
+
+Output:""".format(text)
+
+
+def normalize_token(text):
     text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9\s_]", " ", text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
+    text = re.sub(r"[^a-z0-9_\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    text = text.replace(" ", "_")
+    text = ACTION_NORMALIZATION.get(text, text)
 
-
-def normalize_action(action):
-    cleaned = normalize_text(action)
-    underscored = cleaned.replace(" ", "_")
-
-    for candidate in (cleaned, underscored):
-        candidate = MODEL_ALIASES.get(candidate, candidate)
-        if candidate in ALLOWED_ACTIONS:
-            return candidate
+    if text in ALLOWED_ACTIONS:
+        return text
 
     return "unknown"
 
 
-def build_prompt(text):
-    return """Return only an array of one string.
+def extract_action(raw_output):
+    text = raw_output.strip()
 
-Allowed strings:
-sit, stand, stand_down, stop, walk_forward, walk_backward, walk_left, walk_right, rotate_left, rotate_right, recover, unknown
-
-The input comes from speech-to-text and may have mistakes.
-Correct likely speech mistakes before choosing the action.
-Examples of possible mistakes:
-set or seat means sit
-stock or stopped means stop
-standup means stand
-standdown means stand_down
-walk straight means walk_forward
-turn right means rotate_right
-turn left means rotate_left
-
-Input: stop moving
-Output: ["stop"]
-
-Input: sit down
-Output: ["sit"]
-
-Input: can you walk straight
-Output: ["walk_forward"]
-
-Input: turn right please
-Output: ["rotate_right"]
-
-Input: {}
-Output:""".format(text)
-
-
-def extract_array(output):
-    matches = re.findall(r"\[[^\[\]]*\]", output)
-    for item in reversed(matches):
+    arrays = re.findall(r"\[[^\[\]]*\]", text)
+    for array_text in reversed(arrays):
         try:
-            value = json.loads(item)
+            value = json.loads(array_text)
         except Exception:
             continue
-        if isinstance(value, list) and all(isinstance(entry, str) for entry in value):
-            return value
-    return []
+        if isinstance(value, list) and value:
+            return normalize_token(str(value[0]))
+
+    quoted = re.findall(r'"([^"]+)"', text)
+    for item in reversed(quoted):
+        action = normalize_token(item)
+        if action != "unknown":
+            return action
+
+    for action in sorted(ALLOWED_ACTIONS, key=len, reverse=True):
+        if re.search(r"\b{}\b".format(re.escape(action)), text):
+            return action
+
+    return "unknown"
 
 
-def run_liquid(text):
+def call_liquid(text):
     prompt = build_prompt(text)
     command = [
         LLAMA_CLI_PATH,
@@ -109,33 +136,28 @@ def run_liquid(text):
         "-p",
         prompt,
         "-n",
-        "40",
+        "16",
         "--temp",
         "0",
         "-no-cnv",
     ]
 
-    try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except Exception as exc:
-        print("LLM_ERROR:", exc)
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    if result.returncode != 0:
+        print("LLM_ERROR:", result.stderr.strip())
         return "unknown"
 
-    output = result.stdout + "\n" + result.stderr
-    tokens = extract_array(output)
-    if not tokens:
-        return "unknown"
+    output = result.stdout
+    if "Output:" in output:
+        output = output.rsplit("Output:", 1)[-1]
 
-    return normalize_action(tokens[0])
-
-
-def parse_action(text):
-    return run_liquid(text)
+    return extract_action(output)
 
 
 def parse_text(text):
@@ -143,7 +165,7 @@ def parse_text(text):
     actions = []
 
     for task in tasks:
-        actions.append(parse_action(task))
+        actions.append(call_liquid(task))
 
     return actions
 
