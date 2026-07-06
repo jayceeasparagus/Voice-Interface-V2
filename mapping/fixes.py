@@ -1,19 +1,15 @@
 import re
 
 
-# Add Moonshine mishears or common wording fixes here.
-# These run before mapping, so obvious fixes stay fast and predictable.
-TEXT_FIXES = [
-    ("set", "sit"),
-    ("seat", "sit"),
-    ("sid", "sit"),
-    ("set down", "sit down"),
-    ("please walk straight", "walk forward"),
-    ("walk straight", "walk forward"),
-    ("go straight", "walk forward"),
-    ("move straight", "walk forward"),
-    ("back it up", "walk backward"),
-]
+# Add single-word Moonshine mishears here when you notice them.
+# Keep this empty by default so mapping is handled by qa_pairs.json.
+#
+# Format:
+# TEXT_FIXES = [
+#     ("set", "sit"),
+#     ("seat", "sit"),
+# ]
+TEXT_FIXES = []
 
 
 def normalize_text(text):
@@ -27,7 +23,14 @@ def apply_text_fixes(text):
     text = normalize_text(text)
 
     for bad_text, fixed_text in TEXT_FIXES:
-        if text == normalize_text(bad_text):
-            return normalize_text(fixed_text)
+        bad_text = normalize_text(bad_text)
+        fixed_text = normalize_text(fixed_text)
+
+        if " " in bad_text or " " in fixed_text:
+            continue
+
+        words = text.split()
+        words = [fixed_text if word == bad_text else word for word in words]
+        text = " ".join(words)
 
     return text
