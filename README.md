@@ -72,6 +72,17 @@ Liquid AI can still be added later as another mapping backend.
 Processes intent into a safe, structured function call. This layer should
 validate allowed robot actions before anything is sent to the dog.
 
+Current function-call helpers:
+
+```sh
+python3 -m function_call.builder sit
+python3 -m function_call.builder sit walk_forward
+```
+
+`builder.py` accepts one mapped command or an ordered list of mapped command
+results. It outputs validated `go2_function_call` objects for transport.
+Unknown commands are marked invalid instead of being sent as robot actions.
+
 `transport/`
 
 Sends validated function calls from the board to the dog, likely over the

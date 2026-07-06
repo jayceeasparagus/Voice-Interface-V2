@@ -46,6 +46,14 @@ Planned responsibilities:
 - command arguments
 - unknown/unsafe command rejection
 
+Current behavior:
+
+- accepts one command, a command list, or full mapping result dictionaries
+- preserves the order from the original spoken sentence
+- returns structured `go2_function_call` dictionaries
+- marks unknown commands as invalid
+- leaves final movement limits to the dog-side executor
+
 ## Transport
 
 The transport module sends function calls to the dog.
