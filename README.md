@@ -43,6 +43,16 @@ set `WAKE_WORD_ENABLED = False` in `audio/config.py`, then run the listener agai
 
 Processes text into intent. This is where Liquid AI should eventually run.
 
+Current LLM helpers:
+
+```sh
+python3 -m llm.text_split "sit down then walk forward"
+python3 -m llm.text_parse "set then can you walk straight"
+```
+
+`text_split.py` uses hardcoded splitting rules. `text_parse.py` first catches
+known command aliases and Moonshine mishears, then falls back to Liquid.
+
 `function_call/`
 
 Processes intent into a safe, structured function call. This layer should
