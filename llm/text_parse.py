@@ -64,15 +64,14 @@ ACTION_NORMALIZATION = {
 
 
 def build_prompt(text):
-    return """Map the input to one action.
+    return """Choose the best robot action for the input.
 
 Input: {}
 
-Output only one string from this list:
-sit
-stand
-stand_down
+Allowed output strings:
 stop
+stand_down
+stand
 walk_forward
 walk_backward
 walk_left
@@ -80,11 +79,14 @@ walk_right
 rotate_left
 rotate_right
 recover
+sit
 unknown
 
 The input is from speech-to-text and may have mistakes.
-Map likely speech mistakes to the closest valid action.
+Map likely misheard words to the closest allowed output string.
 If the input is unclear, output unknown.
+
+Return exactly one allowed output string and nothing else.
 
 Output:""".format(text)
 
@@ -104,8 +106,16 @@ def normalize_token(text):
 
 def extract_action(raw_output):
     text = raw_output.strip()
+    if not text:
+        return "unknown"
 
-    arrays = re.findall(r"\[[^\[\]]*\]", text)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "unknown"
+
+    first_line = lines[0]
+
+    arrays = re.findall(r"\[[^\[\]]*\]", first_line)
     for array_text in reversed(arrays):
         try:
             value = json.loads(array_text)
@@ -114,17 +124,15 @@ def extract_action(raw_output):
         if isinstance(value, list) and value:
             return normalize_token(str(value[0]))
 
-    quoted = re.findall(r'"([^"]+)"', text)
+    quoted = re.findall(r'"([^"]+)"', first_line)
     for item in reversed(quoted):
         action = normalize_token(item)
         if action != "unknown":
             return action
 
-    for action in sorted(ALLOWED_ACTIONS, key=len, reverse=True):
-        if re.search(r"\b{}\b".format(re.escape(action)), text):
-            return action
+    token = first_line.split()[0] if first_line.split() else ""
+    return normalize_token(token)
 
-    return "unknown"
 
 
 def call_liquid(text):
