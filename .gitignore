@@ -7,3 +7,6 @@ venv/
 *.log
 .pytest_cache/
 data/*.npz
+mapping/*.npz
+mapping/*.sqlite3
+models/

@@ -9,7 +9,7 @@ project layout before building each module.
 
 ```text
 Audio
-  -> LLM
+  -> Mapping
   -> Function Call
   -> Transport
   -> Dog
@@ -39,19 +39,33 @@ For testing without a wake word:
 
 set `WAKE_WORD_ENABLED = False` in `audio/config.py`, then run the listener again.
 
-`llm/`
+`mapping/`
 
-Processes text into intent. This is where Liquid AI should eventually run.
+Processes text into robot command intent. This currently uses a lightweight
+sqlite-backed text mapper so the project stays self-contained.
 
-Current LLM helpers:
+Current mapping helpers:
 
 ```sh
-python3 -m llm.text_split "sit down then walk forward"
-python3 -m llm.text_parse "set then can you walk straight"
+python3 -m mapping.text_split "sit down then walk forward"
+python3 -m mapping.sqlite_mapper "set then can you walk straight"
 ```
 
-`text_split.py` uses hardcoded splitting rules. `text_parse.py` first catches
-known command aliases and Moonshine mishears, then falls back to Liquid.
+`text_split.py` uses hardcoded splitting rules. `sqlite_mapper.py` loads
+`qa_pairs.json` into a local sqlite database and uses lightweight text vectors
+to map text to commands. Common Moonshine mishears can be configured in
+`mapping/fixes.py`.
+
+The repo includes `python3-sqlite3_3.10.13-r0_arm64.deb`, copied from V1, in
+case the board Python is missing sqlite3 support.
+
+If `import sqlite3` fails on the board, install the included package:
+
+```sh
+sudo dpkg -i python3-sqlite3_3.10.13-r0_arm64.deb
+```
+
+Liquid AI can still be added later as another mapping backend.
 
 `function_call/`
 

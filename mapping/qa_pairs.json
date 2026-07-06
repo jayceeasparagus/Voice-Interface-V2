@@ -1,0 +1,57 @@
+[
+  {"question": "stop", "command": "stop"},
+  {"question": "freeze", "command": "stop"},
+  {"question": "halt", "command": "stop"},
+  {"question": "stop moving", "command": "stop"},
+  {"question": "do not move", "command": "stop"},
+
+  {"question": "stand", "command": "stand"},
+  {"question": "stand up", "command": "stand"},
+  {"question": "get up", "command": "stand"},
+  {"question": "rise", "command": "stand"},
+
+  {"question": "sit", "command": "sit"},
+  {"question": "sit down", "command": "sit"},
+  {"question": "take a seat", "command": "sit"},
+
+  {"question": "stand down", "command": "stand_down"},
+  {"question": "lie down", "command": "stand_down"},
+  {"question": "lay down", "command": "stand_down"},
+  {"question": "rest", "command": "stand_down"},
+
+  {"question": "recover", "command": "recover"},
+  {"question": "recovery stand", "command": "recover"},
+
+  {"question": "walk forward", "command": "walk_forward"},
+  {"question": "go forward", "command": "walk_forward"},
+  {"question": "move forward", "command": "walk_forward"},
+  {"question": "go straight", "command": "walk_forward"},
+  {"question": "move ahead", "command": "walk_forward"},
+  {"question": "walk straight", "command": "walk_forward"},
+
+  {"question": "walk backward", "command": "walk_backward"},
+  {"question": "go backward", "command": "walk_backward"},
+  {"question": "move backward", "command": "walk_backward"},
+  {"question": "back up", "command": "walk_backward"},
+  {"question": "reverse", "command": "walk_backward"},
+
+  {"question": "walk left", "command": "walk_left"},
+  {"question": "move left", "command": "walk_left"},
+  {"question": "step left", "command": "walk_left"},
+  {"question": "strafe left", "command": "walk_left"},
+
+  {"question": "walk right", "command": "walk_right"},
+  {"question": "move right", "command": "walk_right"},
+  {"question": "step right", "command": "walk_right"},
+  {"question": "strafe right", "command": "walk_right"},
+
+  {"question": "turn left", "command": "rotate_left"},
+  {"question": "rotate left", "command": "rotate_left"},
+  {"question": "look left", "command": "rotate_left"},
+  {"question": "spin left", "command": "rotate_left"},
+
+  {"question": "turn right", "command": "rotate_right"},
+  {"question": "rotate right", "command": "rotate_right"},
+  {"question": "look right", "command": "rotate_right"},
+  {"question": "spin right", "command": "rotate_right"}
+]

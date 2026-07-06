@@ -36,7 +36,7 @@ def split_text(text):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 -m llm.text_split \"command text\"")
+        print("Usage: python3 -m mapping.text_split \"command text\"")
         return
 
     text = " ".join(sys.argv[1:])

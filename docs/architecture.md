@@ -3,7 +3,7 @@
 V2 is organized around one clear pipeline:
 
 ```text
-Audio -> LLM -> Function Call -> Transport -> Dog
+Audio -> Mapping -> Function Call -> Transport -> Dog
 ```
 
 ## Audio
@@ -20,16 +20,20 @@ Planned responsibilities:
 The first implementation listens through ALSA, uses VAD to split long pauses
 into utterances, and optionally gates output behind a wake word.
 
-## LLM
+## Mapping
 
-The LLM module turns text into intent.
+The mapping module turns text into command intent.
 
-Planned responsibilities:
+Current responsibilities:
 
-- Liquid AI integration
-- prompt design
-- intent JSON output
-- fallback if the model fails
+- split one utterance into ordered tasks
+- apply configurable text fixes for common speech-to-text mistakes
+- load command examples into sqlite
+- map each task to a Go2 command with lightweight text vectors
+- return `unknown` when similarity is too low
+
+Liquid AI can be added later as a second backend, but the sqlite-backed mapper
+is the stable default for V2 right now because it avoids a large model download.
 
 ## Function Call
 
