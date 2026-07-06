@@ -35,20 +35,11 @@ ACTION_NORMALIZATION = {
     "set_down": "sit",
     "standup": "stand",
     "stand_up": "stand",
-    "get_up": "stand",
     "standdown": "stand_down",
-    "stay_down": "stand_down",
-    "lay_down": "stand_down",
-    "lie_down": "stand_down",
-    "stopped": "stop",
-    "stock": "stop",
-    "freeze": "stop",
-    "halt": "stop",
     "go_forward": "walk_forward",
     "move_forward": "walk_forward",
     "walk_straight": "walk_forward",
     "go_straight": "walk_forward",
-    "move_straight": "walk_forward",
     "go_backward": "walk_backward",
     "move_backward": "walk_backward",
     "back_up": "walk_backward",
@@ -64,14 +55,16 @@ ACTION_NORMALIZATION = {
 
 
 def build_prompt(text):
-    return """Choose the best robot action for the input.
+    return """Map user speech to one robot command.
 
-Input: {}
+Input speech:
+{}
 
-Allowed output strings:
+Output must be exactly one of:
+unknown
 stop
-stand_down
 stand
+stand_down
 walk_forward
 walk_backward
 walk_left
@@ -80,18 +73,14 @@ rotate_left
 rotate_right
 recover
 sit
-unknown
 
-The input is from speech-to-text and may have mistakes.
-Map likely misheard words to the closest allowed output string.
-If the input is unclear, output unknown.
-
-Return exactly one allowed output string and nothing else.
+Use unknown if the speech is not clearly a robot command.
+Return only the command string.
 
 Output:""".format(text)
 
 
-def normalize_token(text):
+def normalize_action(text):
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9_\s]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
@@ -104,38 +93,43 @@ def normalize_token(text):
     return "unknown"
 
 
-def extract_action(raw_output):
-    text = raw_output.strip()
-    if not text:
+def get_generated_text(raw_output):
+    if "Output:" in raw_output:
+        return raw_output.rsplit("Output:", 1)[-1].strip()
+    return raw_output.strip()
+
+
+def extract_action(generated_text):
+    if not generated_text:
         return "unknown"
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if not lines:
+    first_line = ""
+    for line in generated_text.splitlines():
+        line = line.strip()
+        if line:
+            first_line = line
+            break
+
+    if not first_line:
         return "unknown"
 
-    first_line = lines[0]
-
-    arrays = re.findall(r"\[[^\[\]]*\]", first_line)
-    for array_text in reversed(arrays):
-        try:
-            value = json.loads(array_text)
-        except Exception:
-            continue
+    try:
+        value = json.loads(first_line)
+        if isinstance(value, str):
+            return normalize_action(value)
         if isinstance(value, list) and value:
-            return normalize_token(str(value[0]))
+            return normalize_action(str(value[0]))
+    except Exception:
+        pass
 
     quoted = re.findall(r'"([^"]+)"', first_line)
-    for item in reversed(quoted):
-        action = normalize_token(item)
-        if action != "unknown":
-            return action
+    if quoted:
+        return normalize_action(quoted[0])
 
-    token = first_line.split()[0] if first_line.split() else ""
-    return normalize_token(token)
+    return normalize_action(first_line.split()[0])
 
 
-
-def call_liquid(text):
+def call_liquid(text, debug=False):
     prompt = build_prompt(text)
     command = [
         LLAMA_CLI_PATH,
@@ -144,7 +138,7 @@ def call_liquid(text):
         "-p",
         prompt,
         "-n",
-        "16",
+        "12",
         "--temp",
         "0",
         "-no-cnv",
@@ -158,33 +152,47 @@ def call_liquid(text):
     )
 
     if result.returncode != 0:
-        print("LLM_ERROR:", result.stderr.strip())
+        if debug:
+            print("LLM_ERROR:", result.stderr.strip())
         return "unknown"
 
-    output = result.stdout
-    if "Output:" in output:
-        output = output.rsplit("Output:", 1)[-1]
+    generated_text = get_generated_text(result.stdout)
+    action = extract_action(generated_text)
 
-    return extract_action(output)
+    if debug:
+        print("TASK:", text)
+        print("RAW_LLM_OUTPUT:")
+        print(result.stdout.strip())
+        print("GENERATED_TEXT:", generated_text)
+        print("PARSED_ACTION:", action)
+
+    return action
 
 
-def parse_text(text):
+def parse_text(text, debug=False):
     tasks = split_text(text)
     actions = []
 
     for task in tasks:
-        actions.append(call_liquid(task))
+        actions.append(call_liquid(task, debug=debug))
 
     return actions
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 -m llm.text_parse \"command text\"")
+    args = sys.argv[1:]
+    debug = False
+
+    if "--debug" in args:
+        debug = True
+        args.remove("--debug")
+
+    if not args:
+        print("Usage: python3 -m llm.text_parse [--debug] \"command text\"")
         return
 
-    text = " ".join(sys.argv[1:])
-    print(parse_text(text))
+    text = " ".join(args)
+    print(parse_text(text, debug=debug))
 
 
 if __name__ == "__main__":
