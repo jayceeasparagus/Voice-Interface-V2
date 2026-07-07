@@ -1,5 +1,5 @@
 #!/bin/sh
-set -eu
+set -e
 
 APP_DIR="${APP_DIR:-/home/unitree/Voice-Interface-V2}"
 cd "$APP_DIR"
