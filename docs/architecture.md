@@ -67,6 +67,7 @@ Planned responsibilities:
 - Unitree SDK command execution
 - posture commands
 - movement commands
+- 180-degree turn command
 - stop/release behavior
 
 Current behavior:

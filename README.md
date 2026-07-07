@@ -29,6 +29,7 @@ Wake word is controlled in `audio/config.py`:
 ```python
 WAKE_WORD_ENABLED = True
 WAKE_WORD = "dog"
+WAKE_WORDS = ["dog", "dogs"]
 ```
 
 For testing without a wake word:
@@ -110,6 +111,7 @@ Board dry-run, no microphone and no dog:
 
 ```sh
 python3 main.py --debug "sit then walk forward" --dry-run
+python3 main.py --debug "turn around" --dry-run
 ```
 
 Dog-side message-only receiver, no movement:

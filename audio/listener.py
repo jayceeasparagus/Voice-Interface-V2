@@ -155,7 +155,7 @@ class AudioListener:
 
         print("Listening on:", config.AUDIO_DEVICE)
         print("Wake word enabled:", self.wake_word_enabled)
-        print("Wake word:", config.WAKE_WORD)
+        print("Wake words:", ", ".join(config.WAKE_WORDS))
         print("Press Ctrl+C to stop.")
 
         try:
@@ -240,11 +240,13 @@ class AudioListener:
         if not self.wake_word_enabled:
             return text
 
-        wake_word = normalize_text(config.WAKE_WORD)
         words = text.split()
 
-        if wake_word in words:
-            command_words = [word for word in words if word != wake_word]
+        wake_words = [normalize_text(wake_word) for wake_word in config.WAKE_WORDS]
+        detected_wake_words = [wake_word for wake_word in wake_words if wake_word in words]
+
+        if detected_wake_words:
+            command_words = [word for word in words if word not in wake_words]
             command = " ".join(command_words).strip()
 
             if command:

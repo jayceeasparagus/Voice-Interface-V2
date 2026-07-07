@@ -11,6 +11,7 @@ ALLOWED_COMMANDS = {
     "walk_right",
     "rotate_left",
     "rotate_right",
+    "turn_around",
     "release",
 }
 

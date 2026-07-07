@@ -53,5 +53,13 @@
   {"question": "turn right", "command": "rotate_right"},
   {"question": "rotate right", "command": "rotate_right"},
   {"question": "look right", "command": "rotate_right"},
-  {"question": "spin right", "command": "rotate_right"}
+  {"question": "spin right", "command": "rotate_right"},
+
+  {"question": "turn around", "command": "turn_around"},
+  {"question": "rotate around", "command": "turn_around"},
+  {"question": "spin around", "command": "turn_around"},
+  {"question": "do a 180", "command": "turn_around"},
+  {"question": "turn one eighty", "command": "turn_around"},
+  {"question": "rotate one eighty", "command": "turn_around"},
+  {"question": "face the other way", "command": "turn_around"}
 ]

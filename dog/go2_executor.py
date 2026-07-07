@@ -17,6 +17,7 @@ LATERAL_SPEED_MPS = 0.15
 LATERAL_DURATION_S = 3.0
 ROTATE_SPEED_RADPS = 0.4
 ROTATE_DURATION_S = 2.0
+TURN_AROUND_DURATION_S = 7.85
 MOVE_COMMAND_HZ = 20.0
 
 VALID_COMMANDS = {
@@ -32,6 +33,7 @@ VALID_COMMANDS = {
     "walk_right",
     "rotate_left",
     "rotate_right",
+    "turn_around",
     "release",
 }
 
@@ -176,6 +178,10 @@ class Go2Executor:
         if command == "rotate_right":
             self.walk(vx=0.0, vy=0.0, vyaw=-ROTATE_SPEED_RADPS, duration_s=ROTATE_DURATION_S)
             return "OK rotate_right"
+
+        if command == "turn_around":
+            self.walk(vx=0.0, vy=0.0, vyaw=ROTATE_SPEED_RADPS, duration_s=TURN_AROUND_DURATION_S)
+            return "OK turn_around"
 
         return "ERROR unhandled {}".format(command)
 
