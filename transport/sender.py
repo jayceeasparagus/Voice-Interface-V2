@@ -4,9 +4,11 @@ import sys
 
 try:
     from transport import config
+    from transport.commands import ALLOWED_COMMANDS
     from transport.protocol import build_message, encode_message
 except ModuleNotFoundError:
     import config
+    from commands import ALLOWED_COMMANDS
     from protocol import build_message, encode_message
 
 
@@ -20,8 +22,8 @@ def dog_host():
     raise ValueError("Unsupported COMMAND_TRANSPORT: {}".format(config.COMMAND_TRANSPORT))
 
 
-def send_function_calls(
-    function_calls,
+def send_commands(
+    mapping_output,
     host=None,
     port=config.DOG_COMMAND_PORT,
     timeout=config.DOG_COMMAND_TIMEOUT_S,
@@ -30,10 +32,13 @@ def send_function_calls(
 ):
     host = host or dog_host()
     message = build_message(
-        function_calls=function_calls,
+        mapping_output=mapping_output,
         source=source,
         transcript=transcript,
     )
+
+    if not message["commands"]:
+        return "NO_VALID_COMMANDS"
 
     with socket.create_connection((host, port), timeout=timeout) as sock:
         sock.sendall(encode_message(message))
@@ -43,26 +48,14 @@ def send_function_calls(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Send a test function call to the dog.")
-    parser.add_argument("command")
+    parser = argparse.ArgumentParser(description="Send Go2 commands to the dog.")
+    parser.add_argument("commands", nargs="+", choices=sorted(ALLOWED_COMMANDS))
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=config.DOG_COMMAND_PORT)
     args = parser.parse_args()
 
-    call = {
-        "type": "go2_function_call",
-        "version": 1,
-        "sequence_id": 0,
-        "valid": True,
-        "command": args.command,
-        "function": "go2.{}".format(args.command),
-        "args": {},
-        "requires_motion_safety": False,
-        "source": {},
-    }
-
     try:
-        print(send_function_calls([call], host=args.host, port=args.port, source="manual"))
+        print(send_commands(args.commands, host=args.host, port=args.port, source="manual"))
     except Exception as exc:
         print("SEND_ERROR:", exc)
         sys.exit(1)

@@ -2,9 +2,9 @@ import argparse
 import json
 import traceback
 
-from function_call.builder import build_function_calls
 from mapping.sqlite_mapper import SqliteCommandMapper
-from transport.sender import send_function_calls
+from transport.protocol import build_message
+from transport.sender import send_commands
 
 
 class VoiceDogPipeline:
@@ -20,18 +20,21 @@ class VoiceDogPipeline:
         print("MAPPING:")
         print(json.dumps(mapping_results, indent=2))
 
-        function_calls = build_function_calls(mapping_results)
-        print("FUNCTION_CALLS:")
-        print(json.dumps(function_calls, indent=2))
+        message_preview = build_message(
+            mapping_output=mapping_results,
+            source="voice",
+            transcript=text,
+        )
+        print("TRANSPORT_MESSAGE:")
+        print(json.dumps(message_preview, indent=2))
 
-        valid_calls = [call for call in function_calls if call["valid"]]
-        if not valid_calls:
-            print("No valid function calls. Nothing sent.")
+        if not message_preview["commands"]:
+            print("No valid commands. Nothing sent.")
             print("==============================\n")
             return {
                 "mapping": mapping_results,
-                "function_calls": function_calls,
-                "response": "NO_VALID_CALLS",
+                "transport_message": message_preview,
+                "response": "NO_VALID_COMMANDS",
             }
 
         if self.dry_run:
@@ -39,12 +42,12 @@ class VoiceDogPipeline:
             print("==============================\n")
             return {
                 "mapping": mapping_results,
-                "function_calls": function_calls,
+                "transport_message": message_preview,
                 "response": "DRY_RUN",
             }
 
-        response = send_function_calls(
-            valid_calls,
+        response = send_commands(
+            mapping_results,
             source="voice",
             transcript=text,
         )
@@ -53,7 +56,7 @@ class VoiceDogPipeline:
 
         return {
             "mapping": mapping_results,
-            "function_calls": function_calls,
+            "transport_message": message_preview,
             "response": response,
         }
 
@@ -68,7 +71,7 @@ def main():
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run mapping and function calling, but do not send to the dog.",
+        help="Run mapping and transport validation, but do not send to the dog.",
     )
     args = parser.parse_args()
 

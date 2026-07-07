@@ -3,7 +3,7 @@
 V2 is organized around one clear pipeline:
 
 ```text
-Audio -> Mapping -> Function Call -> Transport -> Dog
+Audio -> Mapping -> Transport -> Dog
 ```
 
 ## Audio
@@ -35,31 +35,14 @@ Current responsibilities:
 Liquid AI can be added later as a second backend, but the sqlite-backed mapper
 is the stable default for V2 right now because it avoids a large model download.
 
-## Function Call
+## Transport
 
-The function call module turns intent into a safe robot action.
+The transport module validates mapped commands and sends them to the dog.
 
 Planned responsibilities:
 
 - allowed command list
-- safety checks
-- command arguments
 - unknown/unsafe command rejection
-
-Current behavior:
-
-- accepts one command, a command list, or full mapping result dictionaries
-- preserves the order from the original spoken sentence
-- returns structured `go2_function_call` dictionaries
-- marks unknown commands as invalid
-- leaves final movement limits to the dog-side executor
-
-## Transport
-
-The transport module sends function calls to the dog.
-
-Planned responsibilities:
-
 - JSON message format
 - Ethernet board-to-dog socket connection
 - timeout/retry behavior
@@ -67,7 +50,10 @@ Planned responsibilities:
 
 Current behavior:
 
-- sends `go2_function_call_batch` JSON over TCP
+- accepts mapping result dictionaries or plain command strings
+- preserves the order from the original spoken sentence
+- rejects unknown/disallowed commands
+- sends `go2_command_batch` JSON over TCP
 - waits for a dog response
 - supports wired and wireless host settings in `transport/config.py`
 
@@ -85,8 +71,8 @@ Planned responsibilities:
 
 Current behavior:
 
-- listens for function-call batches on TCP port 5005
+- listens for command batches on TCP port 5005
 - supports `--message-only` testing with no movement
-- rejects invalid function calls
+- rejects invalid command messages
 - executes valid commands through the tested V1 SportClient/ObstacleClient pattern
 - calls stand before sit by default for safer posture transitions

@@ -19,5 +19,5 @@ fi
 export PYTHONPATH="/home/unitree/unitree_sdk2_python:${PYTHONPATH:-}"
 export PYTHONPATH="/home/unitree/.local/lib/python3.8/site-packages:${PYTHONPATH:-}"
 
-echo "Starting dog function-call receiver from $APP_DIR"
+echo "Starting dog command receiver from $APP_DIR"
 exec python3 -u "$APP_DIR/dog/receiver.py" --host "${DOG_WIRED_IP:-10.42.0.1}" --port "${DOG_COMMAND_PORT:-5005}"

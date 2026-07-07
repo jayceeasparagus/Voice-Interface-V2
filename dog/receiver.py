@@ -9,24 +9,11 @@ REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-try:
-    from transport import config
-    from transport.protocol import decode_message
-except ModuleNotFoundError:
-    from transport import config
-    from transport.protocol import decode_message
+from transport import config
+from transport.protocol import decode_message
 
 
-def valid_call(call):
-    return (
-        isinstance(call, dict)
-        and call.get("type") == "go2_function_call"
-        and call.get("valid") is True
-        and isinstance(call.get("command"), str)
-    )
-
-
-class DogFunctionCallReceiver:
+class DogCommandReceiver:
     def __init__(self, host, port, message_only=False):
         self.host = host
         self.port = port
@@ -34,27 +21,15 @@ class DogFunctionCallReceiver:
         self.executor = None
 
         if not message_only:
-            try:
-                from dog.go2_executor import Go2Executor
-            except ModuleNotFoundError:
-                from go2_executor import Go2Executor
-
+            from dog.go2_executor import Go2Executor
             self.executor = Go2Executor()
 
-    def handle_call(self, call):
-        if not valid_call(call):
-            return {
-                "sequence_id": call.get("sequence_id") if isinstance(call, dict) else None,
-                "ok": False,
-                "command": "unknown",
-                "response": "invalid_function_call",
-            }
-
-        command = call["command"]
+    def run_command(self, command_item):
+        command = command_item["command"]
 
         if self.message_only:
             return {
-                "sequence_id": call.get("sequence_id"),
+                "sequence_id": command_item.get("sequence_id"),
                 "ok": True,
                 "command": command,
                 "response": "message_only",
@@ -62,7 +37,7 @@ class DogFunctionCallReceiver:
 
         response = self.executor.execute(command)
         return {
-            "sequence_id": call.get("sequence_id"),
+            "sequence_id": command_item.get("sequence_id"),
             "ok": response.startswith("OK"),
             "command": command,
             "response": response,
@@ -79,11 +54,11 @@ class DogFunctionCallReceiver:
             print("Received from {}: {}".format(addr, message))
 
             results = []
-            for call in message["calls"]:
-                results.append(self.handle_call(call))
+            for command_item in message["commands"]:
+                results.append(self.run_command(command_item))
 
             response = {
-                "type": "go2_function_call_response",
+                "type": "go2_command_response",
                 "ok": all(result["ok"] for result in results),
                 "results": results,
             }
@@ -104,7 +79,7 @@ class DogFunctionCallReceiver:
         server.bind((self.host, self.port))
         server.listen(5)
 
-        print("Dog receiver listening on {}:{}.".format(self.host, self.port))
+        print("Dog command receiver listening on {}:{}.".format(self.host, self.port))
         print("Message only:", self.message_only)
 
         try:
@@ -118,7 +93,7 @@ class DogFunctionCallReceiver:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Dog-side function-call receiver.")
+    parser = argparse.ArgumentParser(description="Dog-side command receiver.")
     parser.add_argument("--host", default=config.DOG_WIRED_IP)
     parser.add_argument("--port", type=int, default=config.DOG_COMMAND_PORT)
     parser.add_argument(
@@ -128,7 +103,7 @@ def main():
     )
     args = parser.parse_args()
 
-    receiver = DogFunctionCallReceiver(
+    receiver = DogCommandReceiver(
         host=args.host,
         port=args.port,
         message_only=args.message_only,

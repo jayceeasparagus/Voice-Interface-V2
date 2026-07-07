@@ -2,15 +2,11 @@
 
 This repo is the clean V2 structure for the robot dog voice interface.
 
-No implementation code is written yet. The current goal is to agree on the
-project layout before building each module.
-
 ## Pipeline
 
 ```text
 Audio
   -> Mapping
-  -> Function Call
   -> Transport
   -> Dog
 ```
@@ -67,36 +63,23 @@ sudo dpkg -i python3-sqlite3_3.10.13-r0_arm64.deb
 
 Liquid AI can still be added later as another mapping backend.
 
-`function_call/`
-
-Processes intent into a safe, structured function call. This layer should
-validate allowed robot actions before anything is sent to the dog.
-
-Current function-call helpers:
-
-```sh
-python3 -m function_call.builder sit
-python3 -m function_call.builder sit walk_forward
-```
-
-`builder.py` accepts one mapped command or an ordered list of mapped command
-results. It outputs validated `go2_function_call` objects for transport.
-Unknown commands are marked invalid instead of being sent as robot actions.
-
 `transport/`
 
-Sends validated function calls from the board to the dog, likely over the
+Validates mapped commands and sends them from the board to the dog over the
 working Ethernet link.
 
 Current transport test:
 
 ```sh
-python3 -m transport.sender sit --host 10.42.0.1
+python3 -m transport.sender sit walk_forward --host 10.42.0.1
 ```
+
+`transport/protocol.py` rejects unknown commands before anything is sent to the
+dog. It sends a simple `go2_command_batch` JSON message over TCP.
 
 `dog/`
 
-Receives function calls and executes them on the Unitree Go2.
+Receives command batches and executes them on the Unitree Go2.
 
 Current dog receiver:
 
@@ -116,6 +99,12 @@ Design notes, planning, and setup notes.
 Future tests for each module.
 
 ## End-to-End Testing
+
+Local tests, no dog:
+
+```sh
+python3 -m unittest tests.test_pipeline
+```
 
 Board dry-run, no microphone and no dog:
 
@@ -143,10 +132,46 @@ python3 main.py
 
 ## Service Templates
 
-Service templates live in `scripts/`:
+Use only one service on each device:
 
 - `board-voice.service`
 - `dog-voice.service`
 
-The board service configures `eth0` as `10.42.0.2` and runs `main.py`.
-The dog service configures `eth0` as `10.42.0.1` and runs `dog.receiver`.
+Do not make separate wired-network services. Each service already handles both
+jobs:
+
+- board service: configures `eth0` as `10.42.0.2`, then runs `main.py`
+- dog service: configures `eth0` as `10.42.0.1`, then runs `dog.receiver`
+
+Before using the scripts on Linux, make them executable:
+
+```sh
+chmod +x scripts/*.sh
+```
+
+If old V1 services still exist, disable them before using V2:
+
+```sh
+sudo systemctl disable --now board-wired-network.service 2>/dev/null || true
+sudo systemctl disable --now dog-wired-network.service 2>/dev/null || true
+sudo systemctl disable --now speech-to-dog.service 2>/dev/null || true
+sudo systemctl disable --now dog-voice-receiver.service 2>/dev/null || true
+```
+
+Install the V2 services:
+
+```sh
+sudo cp scripts/board-voice.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now board-voice.service
+sudo systemctl status board-voice.service --no-pager
+```
+
+On the dog:
+
+```sh
+sudo cp scripts/dog-voice.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now dog-voice.service
+sudo systemctl status dog-voice.service --no-pager
+```
