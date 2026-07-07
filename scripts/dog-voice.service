@@ -4,10 +4,10 @@ After=network.target
 
 [Service]
 Type=simple
-Environment=APP_DIR=/home/unitree/Voice-Interface-V2
-WorkingDirectory=/home/unitree/Voice-Interface-V2
-ExecStartPre=/bin/sh /home/unitree/Voice-Interface-V2/scripts/dog_set_wired_ip.sh
-ExecStart=/bin/sh /home/unitree/Voice-Interface-V2/scripts/dog_start_receiver.sh
+Environment=APP_DIR=/home/unitree/Voice-Interface-V2/Voice-Interface-V2
+WorkingDirectory=/home/unitree/Voice-Interface-V2/Voice-Interface-V2
+ExecStartPre=/bin/sh /home/unitree/Voice-Interface-V2/Voice-Interface-V2/scripts/dog_set_wired_ip.sh
+ExecStart=/bin/sh /home/unitree/Voice-Interface-V2/Voice-Interface-V2/scripts/dog_start_receiver.sh
 Restart=always
 RestartSec=5
 
