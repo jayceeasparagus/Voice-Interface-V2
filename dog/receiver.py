@@ -9,6 +9,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
+for extra_path in (
+    "/home/unitree/unitree_sdk2_python",
+    "/home/unitree/.local/lib/python3.8/site-packages",
+):
+    if os.path.exists(extra_path) and extra_path not in sys.path:
+        sys.path.insert(0, extra_path)
+
 from transport import config
 from transport.protocol import decode_message
 
