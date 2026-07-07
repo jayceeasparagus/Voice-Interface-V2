@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 
 import numpy as np
@@ -148,18 +149,29 @@ class AudioListener:
 
     def run(self):
         recorder = self.start_recorder()
+        self.start_error_logger(recorder)
         lookback_size = 7 * config.CHUNK_SIZE
         speech = np.empty(0, dtype=np.float32)
         recording = False
         start_time = time.time()
+        last_heartbeat = time.time()
 
         print("Listening on:", config.AUDIO_DEVICE)
         print("Wake word enabled:", self.wake_word_enabled)
         print("Wake words:", ", ".join(config.WAKE_WORDS))
         print("Press Ctrl+C to stop.")
+        print("Recorder command: arecord -D {} -f S16_LE -r {} -c {}".format(
+            config.AUDIO_DEVICE,
+            config.SAMPLE_RATE,
+            config.CHANNELS,
+        ))
 
         try:
             for chunk in self.read_chunks(recorder):
+                if time.time() - last_heartbeat > 15:
+                    print("Still listening...")
+                    last_heartbeat = time.time()
+
                 speech = np.concatenate((speech, chunk))
                 if not recording:
                     speech = speech[-lookback_size:]
@@ -174,6 +186,7 @@ class AudioListener:
                     recording = False
                     self.handle_utterance(speech)
                     speech = np.empty(0, dtype=np.float32)
+                    self.reset_vad()
 
                 if recording and (len(speech) / config.SAMPLE_RATE) > 15:
                     recording = False
@@ -207,13 +220,23 @@ class AudioListener:
             bufsize=config.CHUNK_SIZE * config.CHANNELS * 2,
         )
 
+    def start_error_logger(self, recorder):
+        def log_errors():
+            for raw_line in iter(recorder.stderr.readline, b""):
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if line:
+                    print("arecord:", line)
+
+        thread = threading.Thread(target=log_errors, daemon=True)
+        thread.start()
+
     def read_chunks(self, recorder):
         read_size = config.CHUNK_SIZE * config.CHANNELS * 2
 
         while True:
             raw = recorder.stdout.read(read_size)
             if not raw:
-                break
+                raise RuntimeError("arecord stopped. Check AUDIO_DEVICE and microphone connection.")
 
             audio = np.frombuffer(raw, dtype=np.int16)
             if config.CHANNELS > 1:
