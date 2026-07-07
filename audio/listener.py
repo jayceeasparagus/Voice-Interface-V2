@@ -148,14 +148,6 @@ class AudioListener:
         )
 
     def run(self):
-        recorder = self.start_recorder()
-        self.start_error_logger(recorder)
-        lookback_size = 7 * config.CHUNK_SIZE
-        speech = np.empty(0, dtype=np.float32)
-        recording = False
-        start_time = time.time()
-        last_heartbeat = time.time()
-
         print("Listening on:", config.AUDIO_DEVICE)
         print("Wake word enabled:", self.wake_word_enabled)
         print("Wake words:", ", ".join(config.WAKE_WORDS))
@@ -165,6 +157,20 @@ class AudioListener:
             config.SAMPLE_RATE,
             config.CHANNELS,
         ))
+
+        while True:
+            speech = self.listen_for_one_utterance()
+            self.handle_utterance(speech)
+
+    def listen_for_one_utterance(self):
+        recorder = self.start_recorder()
+        self.start_error_logger(recorder)
+
+        lookback_size = 7 * config.CHUNK_SIZE
+        speech = np.empty(0, dtype=np.float32)
+        recording = False
+        start_time = time.time()
+        last_heartbeat = time.time()
 
         try:
             for chunk in self.read_chunks(recorder):
@@ -183,23 +189,16 @@ class AudioListener:
                     start_time = time.time()
 
                 if event and "end" in event and recording:
-                    recording = False
-                    self.handle_utterance(speech)
-                    speech = np.empty(0, dtype=np.float32)
-                    self.reset_vad()
+                    return speech
 
                 if recording and (len(speech) / config.SAMPLE_RATE) > 15:
-                    recording = False
-                    self.handle_utterance(speech)
-                    speech = np.empty(0, dtype=np.float32)
-                    self.reset_vad()
+                    return speech
 
                 if recording and time.time() - start_time > 0.5:
                     start_time = time.time()
-
         finally:
-            recorder.terminate()
-            recorder.wait()
+            self.stop_recorder(recorder)
+            self.reset_vad()
 
     def start_recorder(self):
         command = [
@@ -220,11 +219,22 @@ class AudioListener:
             bufsize=config.CHUNK_SIZE * config.CHANNELS * 2,
         )
 
+    def stop_recorder(self, recorder):
+        if recorder.poll() is None:
+            recorder.terminate()
+            try:
+                recorder.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                recorder.kill()
+                recorder.wait()
+
     def start_error_logger(self, recorder):
         def log_errors():
             for raw_line in iter(recorder.stderr.readline, b""):
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if line:
+                    if "aborted by signal" in line.lower() and "terminated" in line.lower():
+                        continue
                     print("arecord:", line)
 
         thread = threading.Thread(target=log_errors, daemon=True)
