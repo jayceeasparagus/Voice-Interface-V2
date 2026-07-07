@@ -2,7 +2,9 @@ import argparse
 import json
 import os
 import socket
+import subprocess
 import sys
+import time
 import traceback
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -20,19 +22,20 @@ from transport import config
 from transport.protocol import decode_message
 
 
+GO2_EXECUTOR_PATH = os.path.join(REPO_ROOT, "dog", "go2_executor.py")
+COMMAND_SETTLE_PAUSE_S = 0.5
+STOP_SEQUENCE_ON_ERROR = True
+
+
 class DogCommandReceiver:
     def __init__(self, host, port, message_only=False):
         self.host = host
         self.port = port
         self.message_only = message_only
-        self.executor = None
-
-        if not message_only:
-            from dog.go2_executor import Go2Executor
-            self.executor = Go2Executor()
 
     def run_command(self, command_item):
         command = command_item["command"]
+        print("Running command {}: {}".format(command_item.get("sequence_id"), command))
 
         if self.message_only:
             return {
@@ -42,10 +45,26 @@ class DogCommandReceiver:
                 "response": "message_only",
             }
 
-        response = self.executor.execute(command)
+        # subprocess.run waits here until go2_executor.py fully finishes.
+        result = subprocess.run(
+            ["python3", GO2_EXECUTOR_PATH, command],
+            capture_output=True,
+            text=True,
+        )
+
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="")
+
+        if result.returncode != 0:
+            response = "ERROR {} returncode {}".format(command, result.returncode)
+        else:
+            response = "OK {}".format(command)
+
         return {
             "sequence_id": command_item.get("sequence_id"),
-            "ok": response.startswith("OK"),
+            "ok": result.returncode == 0,
             "command": command,
             "response": response,
         }
@@ -62,7 +81,14 @@ class DogCommandReceiver:
 
             results = []
             for command_item in message["commands"]:
-                results.append(self.run_command(command_item))
+                result = self.run_command(command_item)
+                results.append(result)
+
+                if STOP_SEQUENCE_ON_ERROR and not result["ok"]:
+                    print("Stopping sequence after failed command:", result)
+                    break
+
+                time.sleep(COMMAND_SETTLE_PAUSE_S)
 
             response = {
                 "type": "go2_command_response",

@@ -8,6 +8,10 @@ NETMASK="${DOG_WIRED_NETMASK:-255.255.255.0}"
 
 echo "Configuring dog wired link: $IFACE -> $ADDR/$CIDR"
 
+rm -rf /tmp/cdds.LOG 2>/dev/null || true
+touch /tmp/cdds.LOG 2>/dev/null || true
+chmod 666 /tmp/cdds.LOG 2>/dev/null || true
+
 if command -v ip >/dev/null 2>&1; then
   ip link set "$IFACE" up
   ip addr replace "$ADDR/$CIDR" dev "$IFACE"
