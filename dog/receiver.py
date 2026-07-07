@@ -27,6 +27,31 @@ COMMAND_SETTLE_PAUSE_S = 0.5
 STOP_SEQUENCE_ON_ERROR = True
 
 
+def dog_python_env():
+    env = os.environ.copy()
+
+    python_paths = [
+        REPO_ROOT,
+        "/home/unitree/unitree_sdk2_python",
+        "/home/unitree/.local/lib/python3.8/site-packages",
+    ]
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    if existing_pythonpath:
+        python_paths.append(existing_pythonpath)
+
+    env["PYTHONPATH"] = ":".join(python_paths)
+
+    library_paths = [
+        "/home/unitree/unitree_ros2/cyclonedds_ws/install/cyclonedds/lib",
+    ]
+    existing_library_path = env.get("LD_LIBRARY_PATH", "")
+    if existing_library_path:
+        library_paths.append(existing_library_path)
+
+    env["LD_LIBRARY_PATH"] = ":".join(library_paths)
+    return env
+
+
 class DogCommandReceiver:
     def __init__(self, host, port, message_only=False):
         self.host = host
@@ -50,6 +75,7 @@ class DogCommandReceiver:
             ["python3", GO2_EXECUTOR_PATH, command],
             capture_output=True,
             text=True,
+            env=dog_python_env(),
         )
 
         if result.stdout:
