@@ -5,7 +5,6 @@ import threading
 import traceback
 
 from mapping.sqlite_mapper import SqliteCommandMapper
-from transport.protocol import actions_from_mapping, build_message
 from transport.sender import send_commands
 
 
@@ -57,16 +56,15 @@ class VoiceDogPipeline:
         print("MAPPING:")
         print(json.dumps(mapping_results, indent=2))
 
-        message_preview = build_message(mapping_results)
-        print("TRANSPORT_MESSAGE:")
-        print(json.dumps(message_preview, indent=2))
+        actions = [item["command"] for item in mapping_results if item["command"] != "unknown"]
+        print("ACTIONS:", actions)
 
-        if not actions_from_mapping(mapping_results):
+        if not actions:
             print("No valid commands. Nothing sent.")
             print("==============================\n")
             return {
                 "mapping": mapping_results,
-                "transport_message": message_preview,
+                "actions": actions,
                 "response": "NO_VALID_COMMANDS",
             }
 
@@ -75,21 +73,17 @@ class VoiceDogPipeline:
             print("==============================\n")
             return {
                 "mapping": mapping_results,
-                "transport_message": message_preview,
+                "actions": actions,
                 "response": "DRY_RUN",
             }
 
-        response = send_commands(
-            mapping_results,
-            source="voice",
-            transcript=text,
-        )
+        response = send_commands(actions)
         print("DOG_RESPONSE:", response)
         print("==============================\n")
 
         return {
             "mapping": mapping_results,
-            "transport_message": message_preview,
+            "actions": actions,
             "response": response,
         }
 
