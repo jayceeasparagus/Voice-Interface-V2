@@ -1,10 +1,12 @@
-WAKE_WORD_ENABLED = True
-WAKE_WORD = "dog"
-WAKE_WORDS = ["dog", "dogs"]
+from audio.listener import (
+    AUDIO_DEVICE,
+    CHANNELS,
+    CHUNK_SIZE,
+    MOONSHINE_MODEL,
+    SAMPLE_RATE,
+    WAKE_WORD_ENABLED,
+    WAKE_WORDS,
+)
 
-AUDIO_DEVICE = "plughw:1,0"
-SAMPLE_RATE = 16000
-CHANNELS = 1
-CHUNK_SIZE = 512
 
-MOONSHINE_MODEL = "base"
+WAKE_WORD = WAKE_WORDS[0]

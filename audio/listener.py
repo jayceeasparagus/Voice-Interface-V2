@@ -1,8 +1,8 @@
+import argparse
 import json
 import os
 import re
 import subprocess
-import threading
 import time
 
 import numpy as np
@@ -11,7 +11,23 @@ import requests
 from silero_vad import VADIterator, load_silero_vad
 from tokenizers import Tokenizer
 
-from audio import config
+
+WAKE_WORDS = ["dog", "dogs"]
+WAKE_WORD_ENABLED = True
+
+AUDIO_DEVICE = "plughw:1,0"
+SAMPLE_RATE = 16000
+CHANNELS = 1
+CHUNK_SIZE = 512
+MAX_SPEECH_SECONDS = 12
+MOONSHINE_MODEL = "base"
+
+
+def clean_text(text):
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\s]", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text
 
 
 def download_model_file(repo_id, filename):
@@ -32,37 +48,23 @@ def download_model_file(repo_id, filename):
     return local_path
 
 
-def normalize_text(text):
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9\s]", "", text)
-    text = re.sub(r"\s+", " ", text)
-    return text
-
-
 class MoonshineSTT:
-    def __init__(self, model=config.MOONSHINE_MODEL):
-        self.model = model
-        self.config_repo = "UsefulSensors/moonshine-{}".format(model)
-        self.onnx_repo = "UsefulSensors/moonshine"
+    def __init__(self, model=MOONSHINE_MODEL):
+        config_repo = "UsefulSensors/moonshine-{}".format(model)
+        onnx_repo = "UsefulSensors/moonshine"
 
-        model_config_path = download_model_file(
-            repo_id=self.config_repo,
-            filename="config.json",
-        )
-        tokenizer_path = download_model_file(
-            repo_id=self.config_repo,
-            filename="tokenizer.json",
-        )
+        config_path = download_model_file(config_repo, "config.json")
+        tokenizer_path = download_model_file(config_repo, "tokenizer.json")
         encoder_path = download_model_file(
-            repo_id=self.onnx_repo,
-            filename="onnx/merged/{}/quantized/encoder_model.onnx".format(model),
+            onnx_repo,
+            "onnx/merged/{}/quantized/encoder_model.onnx".format(model),
         )
         decoder_path = download_model_file(
-            repo_id=self.onnx_repo,
-            filename="onnx/merged/{}/quantized/decoder_model_merged.onnx".format(model),
+            onnx_repo,
+            "onnx/merged/{}/quantized/decoder_model_merged.onnx".format(model),
         )
 
-        with open(model_config_path, "r") as file:
+        with open(config_path, "r") as file:
             self.model_config = json.load(file)
 
         self.tokenizer = Tokenizer.from_file(tokenizer_path)
@@ -79,17 +81,18 @@ class MoonshineSTT:
         self.decoder_layers = self.model_config["decoder_num_hidden_layers"]
         self.max_len = self.model_config["max_position_embeddings"]
 
-        self.transcribe(np.zeros(config.SAMPLE_RATE, dtype=np.float32))
+        self.transcribe(np.zeros(SAMPLE_RATE, dtype=np.float32))
 
     def transcribe(self, audio):
         audio = audio.astype(np.float32)[np.newaxis, :]
-        tokens = self._generate(audio)
+        tokens = self.generate_tokens(audio)
         return self.tokenizer.decode_batch(tokens, skip_special_tokens=True)[0].strip()
 
-    def _generate(self, audio):
-        max_len = min((audio.shape[-1] // config.SAMPLE_RATE) * 6, self.max_len)
+    def generate_tokens(self, audio):
+        max_len = min((audio.shape[-1] // SAMPLE_RATE) * 6, self.max_len)
         encoder_output = self.encoder_session.run(None, {"input_values": audio})[0]
         batch_size = encoder_output.shape[0]
+
         generated_tokens = np.array(
             [[self.decoder_start_token_id]] * batch_size,
             dtype=np.int64,
@@ -106,26 +109,24 @@ class MoonshineSTT:
         }
 
         for index in range(max_len):
-            use_cache_branch = index > 0
+            use_cache = index > 0
             decoder_inputs = {
                 "input_ids": generated_tokens[:, -1:],
                 "encoder_hidden_states": encoder_output,
-                "use_cache_branch": [use_cache_branch],
+                "use_cache_branch": [use_cache],
                 **past_kv,
             }
+
             output = self.decoder_session.run(None, decoder_inputs)
             logits = output[0]
             present_kv = output[1:]
             next_tokens = logits[:, -1].argmax(axis=-1, keepdims=True)
 
             for kv_index, key in enumerate(past_kv):
-                if not use_cache_branch or "decoder" in key:
+                if not use_cache or "decoder" in key:
                     past_kv[key] = present_kv[kv_index]
 
-            generated_tokens = np.concatenate(
-                [generated_tokens, next_tokens],
-                axis=-1,
-            )
+            generated_tokens = np.concatenate([generated_tokens, next_tokens], axis=-1)
 
             if (next_tokens == self.eos_token_id).all():
                 break
@@ -134,68 +135,98 @@ class MoonshineSTT:
 
 
 class AudioListener:
-    def __init__(self, wake_word_enabled=config.WAKE_WORD_ENABLED, handler=None):
+    def __init__(self, wake_word_enabled=WAKE_WORD_ENABLED, handler=None):
         self.wake_word_enabled = wake_word_enabled
         self.handler = handler
-        self.awake = False
+        self.waiting_for_command = False
         self.stt = MoonshineSTT()
         self.vad_model = load_silero_vad(onnx=True)
         self.vad = VADIterator(
             model=self.vad_model,
-            sampling_rate=config.SAMPLE_RATE,
+            sampling_rate=SAMPLE_RATE,
             threshold=0.3,
             min_silence_duration_ms=300,
         )
 
     def run(self):
-        print("Listening on:", config.AUDIO_DEVICE)
+        print("Audio test running.")
+        print("Device:", AUDIO_DEVICE)
         print("Wake word enabled:", self.wake_word_enabled)
-        print("Wake words:", ", ".join(config.WAKE_WORDS))
-        print("Press Ctrl+C to stop.")
-        print("Recorder command: arecord -D {} -f S16_LE -r {} -c {}".format(
-            config.AUDIO_DEVICE,
-            config.SAMPLE_RATE,
-            config.CHANNELS,
-        ))
+        print("Wake words:", ", ".join(WAKE_WORDS))
+        print("Say a wake word plus a command, like: dog stand")
 
         while True:
-            speech = self.listen_for_one_utterance()
-            self.handle_utterance(speech)
+            text = self.listen_once()
+            if not text:
+                continue
 
-    def listen_for_one_utterance(self):
+            if self.handler:
+                self.handler(text)
+            else:
+                print("TEXT:", text)
+
+    def listen_once(self):
+        audio = self.record_one_phrase()
+        heard_text = self.stt.transcribe(audio)
+
+        if not heard_text:
+            return None
+
+        print("HEARD:", heard_text)
+        return self.apply_wake_word(heard_text)
+
+    def apply_wake_word(self, text):
+        text = clean_text(text)
+
+        if not self.wake_word_enabled:
+            return text
+
+        words = text.split()
+        wake_words = [clean_text(word) for word in WAKE_WORDS]
+
+        for index, word in enumerate(words):
+            if word in wake_words:
+                command = " ".join(words[:index] + words[index + 1 :]).strip()
+                if command:
+                    self.waiting_for_command = False
+                    return command
+
+                self.waiting_for_command = True
+                return None
+
+        if self.waiting_for_command:
+            self.waiting_for_command = False
+            return text
+
+        return None
+
+    def record_one_phrase(self):
         recorder = self.start_recorder()
-        self.start_error_logger(recorder)
-
-        lookback_size = 7 * config.CHUNK_SIZE
-        speech = np.empty(0, dtype=np.float32)
+        lookback_size = 7 * CHUNK_SIZE
+        audio = np.empty(0, dtype=np.float32)
         recording = False
-        start_time = time.time()
-        last_heartbeat = time.time()
+        last_message = time.time()
 
         try:
             for chunk in self.read_chunks(recorder):
-                if time.time() - last_heartbeat > 15:
-                    print("Still listening...")
-                    last_heartbeat = time.time()
+                if time.time() - last_message > 15:
+                    print("Listening...")
+                    last_message = time.time()
 
-                speech = np.concatenate((speech, chunk))
+                audio = np.concatenate((audio, chunk))
                 if not recording:
-                    speech = speech[-lookback_size:]
+                    audio = audio[-lookback_size:]
 
                 event = self.vad(chunk)
 
-                if event and "start" in event and not recording:
+                if event and "start" in event:
                     recording = True
-                    start_time = time.time()
 
                 if event and "end" in event and recording:
-                    return speech
+                    return audio
 
-                if recording and (len(speech) / config.SAMPLE_RATE) > 15:
-                    return speech
-
-                if recording and time.time() - start_time > 0.5:
-                    start_time = time.time()
+                if recording and len(audio) / SAMPLE_RATE > MAX_SPEECH_SECONDS:
+                    return audio
         finally:
             self.stop_recorder(recorder)
             self.reset_vad()
@@ -204,19 +235,20 @@ class AudioListener:
         command = [
             "arecord",
             "-D",
-            config.AUDIO_DEVICE,
+            AUDIO_DEVICE,
             "-f",
             "S16_LE",
             "-r",
-            str(config.SAMPLE_RATE),
+            str(SAMPLE_RATE),
             "-c",
-            str(config.CHANNELS),
+            str(CHANNELS),
         ]
+
         return subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            bufsize=config.CHUNK_SIZE * config.CHANNELS * 2,
+            stderr=subprocess.DEVNULL,
+            bufsize=CHUNK_SIZE * CHANNELS * 2,
         )
 
     def stop_recorder(self, recorder):
@@ -228,72 +260,19 @@ class AudioListener:
                 recorder.kill()
                 recorder.wait()
 
-    def start_error_logger(self, recorder):
-        def log_errors():
-            for raw_line in iter(recorder.stderr.readline, b""):
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if line:
-                    if "aborted by signal" in line.lower() and "terminated" in line.lower():
-                        continue
-                    print("arecord:", line)
-
-        thread = threading.Thread(target=log_errors, daemon=True)
-        thread.start()
-
     def read_chunks(self, recorder):
-        read_size = config.CHUNK_SIZE * config.CHANNELS * 2
+        read_size = CHUNK_SIZE * CHANNELS * 2
 
         while True:
             raw = recorder.stdout.read(read_size)
             if not raw:
-                raise RuntimeError("arecord stopped. Check AUDIO_DEVICE and microphone connection.")
+                raise RuntimeError("arecord stopped. Check AUDIO_DEVICE.")
 
             audio = np.frombuffer(raw, dtype=np.int16)
-            if config.CHANNELS > 1:
-                audio = audio.reshape(-1, config.CHANNELS)[:, 0]
+            if CHANNELS > 1:
+                audio = audio.reshape(-1, CHANNELS)[:, 0]
 
             yield audio.astype(np.float32) / 32768.0
-
-    def handle_utterance(self, speech):
-        text = self.stt.transcribe(speech)
-        if not text:
-            return
-
-        print("HEARD:", text)
-        output_text = self.apply_wake_word(text)
-        if output_text:
-            if self.handler is not None:
-                self.handler(output_text)
-                return
-            print("TEXT:", output_text, flush=True)
-
-    def apply_wake_word(self, text):
-        text = normalize_text(text)
-
-        if not self.wake_word_enabled:
-            return text
-
-        words = text.split()
-
-        wake_words = [normalize_text(wake_word) for wake_word in config.WAKE_WORDS]
-        detected_wake_words = [wake_word for wake_word in wake_words if wake_word in words]
-
-        if detected_wake_words:
-            command_words = [word for word in words if word not in wake_words]
-            command = " ".join(command_words).strip()
-
-            if command:
-                self.awake = False
-                return command
-
-            self.awake = True
-            return None
-
-        if self.awake and text:
-            self.awake = False
-            return text
-
-        return None
 
     def reset_vad(self):
         self.vad.triggered = False
@@ -302,7 +281,15 @@ class AudioListener:
 
 
 def main():
-    listener = AudioListener(wake_word_enabled=config.WAKE_WORD_ENABLED)
+    parser = argparse.ArgumentParser(description="Speech-to-text audio test.")
+    parser.add_argument(
+        "--no-wake-word",
+        action="store_true",
+        help="Print every phrase without requiring a wake word.",
+    )
+    args = parser.parse_args()
+
+    listener = AudioListener(wake_word_enabled=not args.no_wake_word)
     listener.run()
 
 
