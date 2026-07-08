@@ -11,20 +11,12 @@ REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-for extra_path in (
-    "/home/unitree/unitree_sdk2_python",
-    "/home/unitree/.local/lib/python3.8/site-packages",
-):
-    if os.path.exists(extra_path) and extra_path not in sys.path:
-        sys.path.insert(0, extra_path)
-
 from transport import config
 from transport.protocol import decode_message
 
 
 GO2_EXECUTOR_PATH = os.path.join(REPO_ROOT, "dog", "go2_executor.py")
-COMMAND_SETTLE_PAUSE_S = 0.5
-STOP_SEQUENCE_ON_ERROR = True
+COMMAND_PAUSE_S = 0.5
 
 
 def dog_python_env():
@@ -34,45 +26,33 @@ def dog_python_env():
         REPO_ROOT,
         "/home/unitree/unitree_sdk2_python",
         "/home/unitree/.local/lib/python3.8/site-packages",
+        env.get("PYTHONPATH", ""),
     ]
-    existing_pythonpath = env.get("PYTHONPATH", "")
-    if existing_pythonpath:
-        python_paths.append(existing_pythonpath)
-
-    env["PYTHONPATH"] = ":".join(python_paths)
+    env["PYTHONPATH"] = ":".join([path for path in python_paths if path])
 
     library_paths = [
         "/home/unitree/unitree_ros2/cyclonedds_ws/install/cyclonedds/lib",
+        env.get("LD_LIBRARY_PATH", ""),
     ]
-    existing_library_path = env.get("LD_LIBRARY_PATH", "")
-    if existing_library_path:
-        library_paths.append(existing_library_path)
+    env["LD_LIBRARY_PATH"] = ":".join([path for path in library_paths if path])
 
-    env["LD_LIBRARY_PATH"] = ":".join(library_paths)
     return env
 
 
-class DogCommandReceiver:
+class DogReceiver:
     def __init__(self, host, port, message_only=False):
         self.host = host
         self.port = port
         self.message_only = message_only
 
-    def run_command(self, command_item):
-        command = command_item["command"]
-        print("Running command {}: {}".format(command_item.get("sequence_id"), command))
+    def run_action(self, action):
+        print("Running:", action)
 
         if self.message_only:
-            return {
-                "sequence_id": command_item.get("sequence_id"),
-                "ok": True,
-                "command": command,
-                "response": "message_only",
-            }
+            return {"command": action, "ok": True, "response": "message_only"}
 
-        # subprocess.run waits here until go2_executor.py fully finishes.
         result = subprocess.run(
-            ["python3", GO2_EXECUTOR_PATH, command],
+            ["python3", GO2_EXECUTOR_PATH, action],
             capture_output=True,
             text=True,
             env=dog_python_env(),
@@ -83,50 +63,41 @@ class DogCommandReceiver:
         if result.stderr:
             print(result.stderr, end="")
 
-        if result.returncode != 0:
-            response = "ERROR {} returncode {}".format(command, result.returncode)
+        ok = result.returncode == 0
+        if ok:
+            response = "OK {}".format(action)
         else:
-            response = "OK {}".format(command)
+            response = "ERROR {} returncode {}".format(action, result.returncode)
 
-        return {
-            "sequence_id": command_item.get("sequence_id"),
-            "ok": result.returncode == 0,
-            "command": command,
-            "response": response,
-        }
+        return {"command": action, "ok": ok, "response": response}
 
-    def handle_connection(self, conn, addr):
+    def handle_client(self, conn, addr):
         try:
-            data = conn.recv(8192)
-            if not data:
-                return
-
-            text = data.decode("utf-8", errors="replace")
-            message = decode_message(text)
-            print("Received from {}: {}".format(addr, message))
+            raw_message = conn.recv(4096).decode("utf-8", errors="replace")
+            actions = decode_message(raw_message)
+            print("Received from {}: {}".format(addr, actions))
 
             results = []
-            for command_item in message["commands"]:
-                result = self.run_command(command_item)
+            for action in actions:
+                result = self.run_action(action)
                 results.append(result)
 
-                if STOP_SEQUENCE_ON_ERROR and not result["ok"]:
-                    print("Stopping sequence after failed command:", result)
+                if not result["ok"]:
                     break
 
-                time.sleep(COMMAND_SETTLE_PAUSE_S)
+                time.sleep(COMMAND_PAUSE_S)
 
-            response = {
-                "type": "go2_command_response",
+            reply = {
                 "ok": all(result["ok"] for result in results),
                 "results": results,
             }
-            conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+            conn.sendall((json.dumps(reply) + "\n").encode("utf-8"))
 
-        except Exception:
+        except Exception as exc:
             traceback.print_exc()
+            reply = {"ok": False, "error": str(exc)}
             try:
-                conn.sendall(b'{"ok": false, "error": "server_exception"}\n')
+                conn.sendall((json.dumps(reply) + "\n").encode("utf-8"))
             except Exception:
                 pass
         finally:
@@ -138,13 +109,13 @@ class DogCommandReceiver:
         server.bind((self.host, self.port))
         server.listen(5)
 
-        print("Dog command receiver listening on {}:{}.".format(self.host, self.port))
+        print("Dog receiver listening on {}:{}.".format(self.host, self.port))
         print("Message only:", self.message_only)
 
         try:
             while True:
                 conn, addr = server.accept()
-                self.handle_connection(conn, addr)
+                self.handle_client(conn, addr)
         except KeyboardInterrupt:
             print("\nStopping dog receiver.")
         finally:
@@ -152,17 +123,13 @@ class DogCommandReceiver:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Dog-side command receiver.")
+    parser = argparse.ArgumentParser(description="Receive simple Go2 action JSON.")
     parser.add_argument("--host", default=config.DOG_WIRED_IP)
     parser.add_argument("--port", type=int, default=config.DOG_COMMAND_PORT)
-    parser.add_argument(
-        "--message-only",
-        action="store_true",
-        help="Acknowledge messages without moving the dog.",
-    )
+    parser.add_argument("--message-only", action="store_true")
     args = parser.parse_args()
 
-    receiver = DogCommandReceiver(
+    receiver = DogReceiver(
         host=args.host,
         port=args.port,
         message_only=args.message_only,

@@ -1,9 +1,11 @@
 import argparse
 import json
+import queue
+import threading
 import traceback
 
 from mapping.sqlite_mapper import SqliteCommandMapper
-from transport.protocol import build_message
+from transport.protocol import actions_from_mapping, build_message
 from transport.sender import send_commands
 
 
@@ -11,6 +13,41 @@ class VoiceDogPipeline:
     def __init__(self, dry_run=False):
         self.dry_run = dry_run
         self.mapper = SqliteCommandMapper()
+        self.command_queue = queue.Queue()
+        self.running = True
+        self.worker_thread = threading.Thread(
+            target=self.command_worker,
+            daemon=True,
+        )
+        self.worker_thread.start()
+
+    def enqueue_text(self, text):
+        text = text.strip()
+        if not text:
+            print("Empty command. Ignoring.")
+            return
+
+        print("Queued command:", text)
+        self.command_queue.put(text)
+
+    def command_worker(self):
+        while self.running:
+            try:
+                text = self.command_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+
+            try:
+                self.process_text(text)
+            except Exception:
+                print("\n[COMMAND WORKER ERROR]")
+                traceback.print_exc()
+            finally:
+                self.command_queue.task_done()
+                print("Listening for wake word...")
+
+    def stop(self):
+        self.running = False
 
     def process_text(self, text):
         print("\n==============================")
@@ -20,15 +57,11 @@ class VoiceDogPipeline:
         print("MAPPING:")
         print(json.dumps(mapping_results, indent=2))
 
-        message_preview = build_message(
-            mapping_output=mapping_results,
-            source="voice",
-            transcript=text,
-        )
+        message_preview = build_message(mapping_results)
         print("TRANSPORT_MESSAGE:")
         print(json.dumps(message_preview, indent=2))
 
-        if not message_preview["commands"]:
+        if not actions_from_mapping(mapping_results):
             print("No valid commands. Nothing sent.")
             print("==============================\n")
             return {
@@ -86,7 +119,7 @@ def main():
 
     listener = AudioListener(
         wake_word_enabled=audio_config.WAKE_WORD_ENABLED,
-        handler=pipeline.process_text,
+        handler=pipeline.enqueue_text,
     )
 
     print("Voice Interface V2 running.")
@@ -102,6 +135,8 @@ def main():
     except Exception:
         print("\n[PIPELINE ERROR]")
         traceback.print_exc()
+    finally:
+        pipeline.stop()
 
 
 if __name__ == "__main__":

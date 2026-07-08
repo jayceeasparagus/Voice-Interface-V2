@@ -28,12 +28,12 @@ Current responsibilities:
 
 - split one utterance into ordered tasks
 - apply configurable text fixes for common speech-to-text mistakes
-- load command examples into sqlite
+- load command examples from `qa_pairs.json`
 - map each task to a Go2 command with lightweight text vectors
 - return `unknown` when similarity is too low
 
-Liquid AI can be added later as a second backend, but the sqlite-backed mapper
-is the stable default for V2 right now because it avoids a large model download.
+Liquid AI can be added later as a second backend, but the lightweight mapper is
+the stable default for V2 right now because it avoids a large model download.
 
 ## Transport
 
@@ -53,7 +53,7 @@ Current behavior:
 - accepts mapping result dictionaries or plain command strings
 - preserves the order from the original spoken sentence
 - rejects unknown/disallowed commands
-- sends `go2_command_batch` JSON over TCP
+- sends simple JSON over TCP, like `{"command": "sit"}`
 - waits for a dog response
 - supports wired and wireless host settings in `transport/config.py`
 
@@ -72,7 +72,7 @@ Planned responsibilities:
 
 Current behavior:
 
-- listens for command batches on TCP port 5005
+- listens for simple command JSON on TCP port 5005
 - supports `--message-only` testing with no movement
 - rejects invalid command messages
 - executes valid commands through the tested V1 SportClient/ObstacleClient pattern

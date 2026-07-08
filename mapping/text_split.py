@@ -4,6 +4,7 @@ import sys
 
 SPLIT_PATTERNS = [
     r"\band\s+then\b",
+    r"\band\b",
     r"\bthen\b",
     r"\bafter\s+that\b",
     r"\balso\b",

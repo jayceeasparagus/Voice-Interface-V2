@@ -39,7 +39,7 @@ set `WAKE_WORD_ENABLED = False` in `audio/config.py`, then run the listener agai
 `mapping/`
 
 Processes text into robot command intent. This currently uses a lightweight
-sqlite-backed text mapper so the project stays self-contained.
+embedding-style text mapper so the project stays self-contained.
 
 Current mapping helpers:
 
@@ -49,18 +49,8 @@ python3 -m mapping.sqlite_mapper "set then can you walk straight"
 ```
 
 `text_split.py` uses hardcoded splitting rules. `sqlite_mapper.py` loads
-`qa_pairs.json` into a local sqlite database and uses lightweight text vectors
-to map text to commands. Common Moonshine mishears can be configured in
-`mapping/fixes.py`.
-
-The repo includes `python3-sqlite3_3.10.13-r0_arm64.deb`, copied from V1, in
-case the board Python is missing sqlite3 support.
-
-If `import sqlite3` fails on the board, install the included package:
-
-```sh
-sudo dpkg -i python3-sqlite3_3.10.13-r0_arm64.deb
-```
+`qa_pairs.json` and uses lightweight text vectors to map text to commands.
+Common Moonshine mishears can be configured in `mapping/fixes.py`.
 
 Liquid AI can still be added later as another mapping backend.
 
@@ -76,7 +66,8 @@ python3 -m transport.sender sit walk_forward --host 10.42.0.1
 ```
 
 `transport/protocol.py` rejects unknown commands before anything is sent to the
-dog. It sends a simple `go2_command_batch` JSON message over TCP.
+dog. It sends simple JSON over TCP, like `{"command": "sit"}` or
+`{"commands": ["stand", "sit"]}`.
 
 `dog/`
 

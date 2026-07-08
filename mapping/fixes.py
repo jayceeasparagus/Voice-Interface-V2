@@ -1,15 +1,11 @@
 import re
 
 
-# Add single-word Moonshine mishears here when you notice them.
-# Keep this empty by default so mapping is handled by qa_pairs.json.
-#
-# Format:
-# TEXT_FIXES = [
-#     ("set", "sit"),
-#     ("seat", "sit"),
-# ]
-TEXT_FIXES = []
+# Add common one-word speech mistakes here.
+# Example: if Moonshine hears "set" when you said "sit", map it before matching.
+MISHEARD_WORDS = {
+    "set": "sit",
+}
 
 
 def normalize_text(text):
@@ -20,17 +16,6 @@ def normalize_text(text):
 
 
 def apply_text_fixes(text):
-    text = normalize_text(text)
-
-    for bad_text, fixed_text in TEXT_FIXES:
-        bad_text = normalize_text(bad_text)
-        fixed_text = normalize_text(fixed_text)
-
-        if " " in bad_text or " " in fixed_text:
-            continue
-
-        words = text.split()
-        words = [fixed_text if word == bad_text else word for word in words]
-        text = " ".join(words)
-
-    return text
+    words = normalize_text(text).split()
+    fixed_words = [MISHEARD_WORDS.get(word, word) for word in words]
+    return " ".join(fixed_words)

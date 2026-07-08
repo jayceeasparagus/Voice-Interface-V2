@@ -23,20 +23,14 @@ class PipelineTests(unittest.TestCase):
                 {"command": "unknown"},
                 {"command": "walk_forward"},
                 {"command": "turn_around"},
-            ],
-            source="test",
-            transcript="sit then something weird then walk forward",
+            ]
         )
 
-        commands = [item["command"] for item in message["commands"]]
-        rejected = [item["command"] for item in message["rejected"]]
-
-        self.assertEqual(commands, ["sit", "walk_forward", "turn_around"])
-        self.assertEqual(rejected, ["unknown"])
+        self.assertEqual(message["commands"], ["sit", "walk_forward", "turn_around"])
 
     def test_protocol_decodes_plain_command_for_manual_testing(self):
-        message = decode_message("sit")
-        self.assertEqual(message["commands"][0]["command"], "sit")
+        commands = decode_message("sit")
+        self.assertEqual(commands, ["sit"])
 
 
 if __name__ == "__main__":
