@@ -8,7 +8,7 @@ from unitree_sdk2py.go2.sport.sport_client import SportClient
 
 IFACE = "ethrobot"
 
-STAND_BEFORE_SIT = True
+STAND_BEFORE_SIT = False
 STAND_BEFORE_MOVEMENT = False
 
 WALK_SPEED_MPS = 0.2
@@ -142,8 +142,6 @@ class Go2Executor:
             return "OK stand"
 
         if command == "sit":
-            if STAND_BEFORE_SIT:
-                self.prepare_stand()
             print("Sit:", self.sport_client.Sit())
             return "OK sit"
 
