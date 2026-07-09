@@ -48,10 +48,21 @@ def main():
     parser.add_argument("actions", nargs="+", choices=sorted(ALLOWED_COMMANDS))
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=config.DOG_COMMAND_PORT)
+    parser.add_argument("--distance-m", type=float, default=None)
+    parser.add_argument("--degrees", type=float, default=None)
     args = parser.parse_args()
 
     try:
-        print(send_actions(args.actions, host=args.host, port=args.port))
+        actions = args.actions
+        if len(actions) == 1 and (args.distance_m is not None or args.degrees is not None):
+            params = {}
+            if args.distance_m is not None:
+                params["distance_m"] = args.distance_m
+            if args.degrees is not None:
+                params["degrees"] = args.degrees
+            actions = [{"command": actions[0], "params": params}]
+
+        print(send_actions(actions, host=args.host, port=args.port))
     except Exception as exc:
         print("SEND_ERROR:", exc)
         sys.exit(1)

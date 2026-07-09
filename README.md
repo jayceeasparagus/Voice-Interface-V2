@@ -63,11 +63,20 @@ Current transport test:
 
 ```sh
 python3 -m transport.sender sit walk_forward --host 10.42.0.1
+python3 -m transport.sender walk_forward --distance-m 0.5 --host 10.42.0.1
+python3 -m transport.sender rotate_left --degrees 90 --host 10.42.0.1
 ```
 
 `transport/protocol.py` rejects unknown commands before anything is sent to the
 dog. It sends simple JSON over TCP, like `{"command": "sit"}` or
-`{"commands": ["stand", "sit"]}`.
+`{"commands": [{"command": "stand"}, {"command": "sit"}]}`.
+
+Movement and rotation can include simple parameters:
+
+```json
+{"command": "walk_forward", "params": {"distance_m": 1.0}}
+{"command": "rotate_left", "params": {"degrees": 90}}
+```
 
 `dog/`
 

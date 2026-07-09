@@ -7,9 +7,11 @@ import numpy as np
 
 try:
     from mapping.fixes import apply_text_fixes
+    from mapping.parameter_parser import params_for_command
     from mapping.text_split import split_text
 except ModuleNotFoundError:
     from fixes import apply_text_fixes
+    from parameter_parser import params_for_command
     from text_split import split_text
 
 
@@ -89,6 +91,7 @@ class SqliteCommandMapper:
             "input": text,
             "fixed_input": fixed_text,
             "command": action,
+            "params": params_for_command(action, fixed_text),
             "matched_question": matched_question,
             "score": score,
         }

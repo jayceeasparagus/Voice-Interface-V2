@@ -45,14 +45,27 @@ class DogReceiver:
         self.port = port
         self.message_only = message_only
 
-    def run_action(self, action):
+    def run_action(self, command_item):
+        action = command_item["command"]
+        params = command_item.get("params", {})
         print("Running:", action)
 
         if self.message_only:
-            return {"command": action, "ok": True, "response": "message_only"}
+            return {
+                "command": action,
+                "params": params,
+                "ok": True,
+                "response": "message_only",
+            }
+
+        command = ["python3", GO2_EXECUTOR_PATH, action]
+        if "distance_m" in params:
+            command.extend(["--distance-m", str(params["distance_m"])])
+        if "degrees" in params:
+            command.extend(["--degrees", str(params["degrees"])])
 
         result = subprocess.run(
-            ["python3", GO2_EXECUTOR_PATH, action],
+            command,
             capture_output=True,
             text=True,
             env=dog_python_env(),
@@ -69,17 +82,17 @@ class DogReceiver:
         else:
             response = "ERROR {} returncode {}".format(action, result.returncode)
 
-        return {"command": action, "ok": ok, "response": response}
+        return {"command": action, "params": params, "ok": ok, "response": response}
 
     def handle_client(self, conn, addr):
         try:
             raw_message = conn.recv(4096).decode("utf-8", errors="replace")
-            actions = decode_message(raw_message)
-            print("Received from {}: {}".format(addr, actions))
+            command_items = decode_message(raw_message)
+            print("Received from {}: {}".format(addr, command_items))
 
             results = []
-            for action in actions:
-                result = self.run_action(action)
+            for command_item in command_items:
+                result = self.run_action(command_item)
                 results.append(result)
 
                 if not result["ok"]:

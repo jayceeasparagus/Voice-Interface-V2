@@ -1,4 +1,5 @@
 import argparse
+import math
 import time
 
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize
@@ -19,6 +20,11 @@ ROTATE_SPEED_RADPS = 0.4
 ROTATE_DURATION_S = 2.0
 TURN_AROUND_DURATION_S = 7.85
 MOVE_COMMAND_HZ = 20.0
+
+MIN_DISTANCE_M = 0.2
+MAX_DISTANCE_M = 2.0
+MIN_ROTATION_DEG = 10.0
+MAX_ROTATION_DEG = 180.0
 
 VALID_COMMANDS = {
     "check",
@@ -108,6 +114,21 @@ def repeated_obstacle_move(obstacle_client, vx, vy, vyaw, duration_s):
         time.sleep(period_s)
 
 
+def clamp(value, min_value, max_value):
+    return max(min_value, min(max_value, value))
+
+
+def walk_duration_from_distance(distance_m, speed_mps):
+    distance_m = clamp(float(distance_m), MIN_DISTANCE_M, MAX_DISTANCE_M)
+    return distance_m / abs(speed_mps)
+
+
+def rotate_duration_from_degrees(degrees):
+    degrees = clamp(float(degrees), MIN_ROTATION_DEG, MAX_ROTATION_DEG)
+    radians = math.radians(degrees)
+    return radians / abs(ROTATE_SPEED_RADPS)
+
+
 class Go2Executor:
     def __init__(self):
         print("Initializing Go2 channel on", IFACE)
@@ -120,7 +141,7 @@ class Go2Executor:
         print("Prepare StandUp:", self.sport_client.StandUp())
         time.sleep(0.7)
 
-    def execute(self, command):
+    def execute(self, command, distance_m=None, degrees=None):
         if command not in VALID_COMMANDS:
             raise ValueError("Invalid Go2 command: {}".format(command))
 
@@ -154,31 +175,52 @@ class Go2Executor:
             return "OK recover"
 
         if command == "walk_forward":
-            self.walk(vx=WALK_SPEED_MPS, vy=0.0, vyaw=0.0, duration_s=WALK_DURATION_S)
+            duration_s = WALK_DURATION_S
+            if distance_m is not None:
+                duration_s = walk_duration_from_distance(distance_m, WALK_SPEED_MPS)
+            self.walk(vx=WALK_SPEED_MPS, vy=0.0, vyaw=0.0, duration_s=duration_s)
             return "OK walk_forward"
 
         if command == "walk_backward":
-            self.walk(vx=-WALK_SPEED_MPS, vy=0.0, vyaw=0.0, duration_s=WALK_DURATION_S)
+            duration_s = WALK_DURATION_S
+            if distance_m is not None:
+                duration_s = walk_duration_from_distance(distance_m, WALK_SPEED_MPS)
+            self.walk(vx=-WALK_SPEED_MPS, vy=0.0, vyaw=0.0, duration_s=duration_s)
             return "OK walk_backward"
 
         if command == "walk_left":
-            self.walk(vx=0.0, vy=LATERAL_SPEED_MPS, vyaw=0.0, duration_s=LATERAL_DURATION_S)
+            duration_s = LATERAL_DURATION_S
+            if distance_m is not None:
+                duration_s = walk_duration_from_distance(distance_m, LATERAL_SPEED_MPS)
+            self.walk(vx=0.0, vy=LATERAL_SPEED_MPS, vyaw=0.0, duration_s=duration_s)
             return "OK walk_left"
 
         if command == "walk_right":
-            self.walk(vx=0.0, vy=-LATERAL_SPEED_MPS, vyaw=0.0, duration_s=LATERAL_DURATION_S)
+            duration_s = LATERAL_DURATION_S
+            if distance_m is not None:
+                duration_s = walk_duration_from_distance(distance_m, LATERAL_SPEED_MPS)
+            self.walk(vx=0.0, vy=-LATERAL_SPEED_MPS, vyaw=0.0, duration_s=duration_s)
             return "OK walk_right"
 
         if command == "rotate_left":
-            self.walk(vx=0.0, vy=0.0, vyaw=ROTATE_SPEED_RADPS, duration_s=ROTATE_DURATION_S)
+            duration_s = ROTATE_DURATION_S
+            if degrees is not None:
+                duration_s = rotate_duration_from_degrees(degrees)
+            self.walk(vx=0.0, vy=0.0, vyaw=ROTATE_SPEED_RADPS, duration_s=duration_s)
             return "OK rotate_left"
 
         if command == "rotate_right":
-            self.walk(vx=0.0, vy=0.0, vyaw=-ROTATE_SPEED_RADPS, duration_s=ROTATE_DURATION_S)
+            duration_s = ROTATE_DURATION_S
+            if degrees is not None:
+                duration_s = rotate_duration_from_degrees(degrees)
+            self.walk(vx=0.0, vy=0.0, vyaw=-ROTATE_SPEED_RADPS, duration_s=duration_s)
             return "OK rotate_right"
 
         if command == "turn_around":
-            self.walk(vx=0.0, vy=0.0, vyaw=ROTATE_SPEED_RADPS, duration_s=TURN_AROUND_DURATION_S)
+            duration_s = TURN_AROUND_DURATION_S
+            if degrees is not None:
+                duration_s = rotate_duration_from_degrees(degrees)
+            self.walk(vx=0.0, vy=0.0, vyaw=ROTATE_SPEED_RADPS, duration_s=duration_s)
             return "OK turn_around"
 
         return "ERROR unhandled {}".format(command)
@@ -206,10 +248,16 @@ class Go2Executor:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=sorted(VALID_COMMANDS))
+    parser.add_argument("--distance-m", type=float, default=None)
+    parser.add_argument("--degrees", type=float, default=None)
     args = parser.parse_args()
 
     executor = Go2Executor()
-    print(executor.execute(args.command))
+    print(executor.execute(
+        args.command,
+        distance_m=args.distance_m,
+        degrees=args.degrees,
+    ))
 
 
 if __name__ == "__main__":

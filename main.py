@@ -56,7 +56,7 @@ class VoiceDogPipeline:
         print("MAPPING:")
         print(json.dumps(mapping_results, indent=2))
 
-        actions = [item["command"] for item in mapping_results if item["command"] != "unknown"]
+        actions = [item for item in mapping_results if item["command"] != "unknown"]
         print("ACTIONS:", actions)
 
         if not actions:

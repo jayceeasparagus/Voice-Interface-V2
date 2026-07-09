@@ -12,29 +12,36 @@ def action_from_item(item):
     return normalize_command(item)
 
 
-def actions_from_mapping(mapping_output):
+def command_items_from_mapping(mapping_output):
     if mapping_output is None:
         return []
 
     if isinstance(mapping_output, (str, dict)):
         mapping_output = [mapping_output]
 
-    actions = []
+    items = []
     for item in mapping_output:
         action = action_from_item(item)
         if is_allowed_command(action):
-            actions.append(action)
+            command_item = {"command": action}
+            if isinstance(item, dict) and item.get("params"):
+                command_item["params"] = item["params"]
+            items.append(command_item)
 
-    return actions
+    return items
+
+
+def actions_from_mapping(mapping_output):
+    return [item["command"] for item in command_items_from_mapping(mapping_output)]
 
 
 def build_message(mapping_output):
-    actions = actions_from_mapping(mapping_output)
+    command_items = command_items_from_mapping(mapping_output)
 
-    if len(actions) == 1:
-        return {"command": actions[0]}
+    if len(command_items) == 1:
+        return command_items[0]
 
-    return {"commands": actions}
+    return {"commands": command_items}
 
 
 def encode_message(message):
@@ -50,17 +57,28 @@ def decode_message(raw_text):
         action = normalize_command(text)
         if not is_allowed_command(action):
             raise ValueError("Invalid command: {}".format(action))
-        return [action]
+        return [{"command": action}]
 
     message = json.loads(text)
 
     if "command" in message:
-        actions = [normalize_command(message["command"])]
+        raw_items = [message]
     else:
-        actions = [normalize_command(action) for action in message.get("commands", [])]
+        raw_items = message.get("commands", [])
 
-    actions = [action for action in actions if is_allowed_command(action)]
-    if not actions:
+    command_items = []
+    for item in raw_items:
+        if isinstance(item, dict):
+            action = normalize_command(item.get("command"))
+            params = item.get("params", {})
+        else:
+            action = normalize_command(item)
+            params = {}
+
+        if is_allowed_command(action):
+            command_items.append({"command": action, "params": params})
+
+    if not command_items:
         raise ValueError("No valid commands in message")
 
-    return actions
+    return command_items
