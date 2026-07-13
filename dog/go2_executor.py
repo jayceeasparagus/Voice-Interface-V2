@@ -17,8 +17,9 @@ WALK_DURATION_S = 5.0
 LATERAL_SPEED_MPS = 0.15
 LATERAL_DURATION_S = 3.0
 ROTATE_SPEED_RADPS = 0.4
-ROTATE_DURATION_S = 2.0
-TURN_AROUND_DURATION_S = 7.85
+ROTATE_CORRECTION = 1.2
+ROTATE_DURATION_S = 2.4
+TURN_AROUND_DURATION_S = 9.4
 MOVE_COMMAND_HZ = 20.0
 
 MIN_DISTANCE_M = 0.2
@@ -126,7 +127,7 @@ def walk_duration_from_distance(distance_m, speed_mps):
 def rotate_duration_from_degrees(degrees):
     degrees = clamp(float(degrees), MIN_ROTATION_DEG, MAX_ROTATION_DEG)
     radians = math.radians(degrees)
-    return radians / abs(ROTATE_SPEED_RADPS)
+    return (radians / abs(ROTATE_SPEED_RADPS)) * ROTATE_CORRECTION
 
 
 class Go2Executor:
