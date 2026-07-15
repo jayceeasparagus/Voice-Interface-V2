@@ -5,11 +5,11 @@ import sys
 try:
     from transport import config
     from transport.commands import ALLOWED_COMMANDS
-    from transport.protocol import actions_from_mapping, build_message, encode_message
+    from transport.protocol import actions_from_mapping, build_message, encode_message, receive_line
 except ModuleNotFoundError:
     import config
     from commands import ALLOWED_COMMANDS
-    from protocol import actions_from_mapping, build_message, encode_message
+    from protocol import actions_from_mapping, build_message, encode_message, receive_line
 
 
 def get_dog_host():
@@ -29,7 +29,7 @@ def send_actions(actions, host=None, port=config.DOG_COMMAND_PORT, timeout=confi
 
     with socket.create_connection((host, port), timeout=timeout) as sock:
         sock.sendall(encode_message(message))
-        response = sock.recv(4096)
+        response = receive_line(sock)
 
     return response.decode("utf-8", errors="replace").strip()
 

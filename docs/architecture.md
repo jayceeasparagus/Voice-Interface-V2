@@ -45,7 +45,7 @@ Planned responsibilities:
 - unknown/unsafe command rejection
 - JSON message format
 - Ethernet board-to-dog socket connection
-- timeout/retry behavior
+- bounded socket and command execution timeouts
 - future wireless option if needed
 
 Current behavior:
@@ -54,6 +54,7 @@ Current behavior:
 - preserves the order from the original spoken sentence
 - rejects unknown/disallowed commands
 - sends simple JSON over TCP, like `{"command": "sit"}`
+- reads complete newline-terminated messages even when TCP splits the data
 - waits for a dog response
 - supports wired and wireless host settings in `transport/config.py`
 
@@ -75,5 +76,6 @@ Current behavior:
 - listens for simple command JSON on TCP port 5005
 - supports `--message-only` testing with no movement
 - rejects invalid command messages
+- stops a command if its executor exceeds the time limit
 - executes valid commands through the tested V1 SportClient/ObstacleClient pattern
-- calls stand before sit by default for safer posture transitions
+- leaves posture transitions to the Go2 high-level API

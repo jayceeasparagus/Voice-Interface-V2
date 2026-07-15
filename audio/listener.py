@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import re
+import select
 import subprocess
 import time
 
@@ -21,6 +22,8 @@ CHANNELS = 1
 CHUNK_SIZE = 512
 MAX_SPEECH_SECONDS = 12
 MOONSHINE_MODEL = "base"
+AUDIO_READ_TIMEOUT_S = 5
+AUDIO_RETRY_DELAY_S = 1
 
 
 def clean_text(text):
@@ -156,7 +159,16 @@ class AudioListener:
         print("Say a wake word plus a command, like: dog stand")
 
         while True:
-            text = self.listen_once()
+            try:
+                text = self.listen_once()
+            except KeyboardInterrupt:
+                raise
+            except Exception as error:
+                print("Audio error:", error)
+                print("Restarting audio in 1 second...")
+                time.sleep(AUDIO_RETRY_DELAY_S)
+                continue
+
             if not text:
                 continue
 
@@ -167,6 +179,9 @@ class AudioListener:
 
     def listen_once(self):
         audio = self.record_one_phrase()
+        if audio.size == 0 or not np.isfinite(audio).all():
+            raise RuntimeError("Audio recorder returned bad data.")
+
         heard_text = self.stt.transcribe(audio)
 
         if not heard_text:
@@ -244,12 +259,18 @@ class AudioListener:
             str(CHANNELS),
         ]
 
-        return subprocess.Popen(
+        recorder = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             bufsize=CHUNK_SIZE * CHANNELS * 2,
         )
+
+        if recorder.stdout is None or recorder.stderr is None:
+            self.stop_recorder(recorder)
+            raise RuntimeError("Could not open arecord output.")
+
+        return recorder
 
     def stop_recorder(self, recorder):
         if recorder.poll() is None:
@@ -260,13 +281,45 @@ class AudioListener:
                 recorder.kill()
                 recorder.wait()
 
+        if recorder.stdout:
+            recorder.stdout.close()
+        if recorder.stderr:
+            recorder.stderr.close()
+
     def read_chunks(self, recorder):
         read_size = CHUNK_SIZE * CHANNELS * 2
 
         while True:
+            if recorder.poll() is not None:
+                raise RuntimeError(
+                    "arecord stopped with code {}. Check AUDIO_DEVICE.".format(
+                        recorder.returncode
+                    )
+                )
+
+            ready, _, _ = select.select(
+                [recorder.stdout, recorder.stderr],
+                [],
+                [],
+                AUDIO_READ_TIMEOUT_S,
+            )
+
+            if not ready:
+                raise RuntimeError("arecord stopped producing audio.")
+
+            if recorder.stderr in ready:
+                message = recorder.stderr.readline().decode(errors="replace").strip()
+                if "overrun" in message.lower():
+                    raise RuntimeError("arecord overrun.")
+
+            if recorder.stdout not in ready:
+                continue
+
             raw = recorder.stdout.read(read_size)
             if not raw:
                 raise RuntimeError("arecord stopped. Check AUDIO_DEVICE.")
+            if len(raw) != read_size:
+                raise RuntimeError("arecord returned an incomplete audio chunk.")
 
             audio = np.frombuffer(raw, dtype=np.int16)
             if CHANNELS > 1:

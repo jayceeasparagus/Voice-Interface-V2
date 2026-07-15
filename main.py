@@ -108,17 +108,16 @@ def main():
         pipeline.process_text(args.debug)
         return
 
-    from audio import config as audio_config
-    from audio.listener import AudioListener
+    from audio.listener import AudioListener, WAKE_WORD_ENABLED, WAKE_WORDS
 
     listener = AudioListener(
-        wake_word_enabled=audio_config.WAKE_WORD_ENABLED,
+        wake_word_enabled=WAKE_WORD_ENABLED,
         handler=pipeline.enqueue_text,
     )
 
     print("Voice Interface V2 running.")
-    print("Wake word enabled:", audio_config.WAKE_WORD_ENABLED)
-    print("Wake word:", audio_config.WAKE_WORD)
+    print("Wake word enabled:", WAKE_WORD_ENABLED)
+    print("Wake words:", ", ".join(WAKE_WORDS))
     print("Dry run:", args.dry_run)
     print("Press Ctrl+C to stop.")
 

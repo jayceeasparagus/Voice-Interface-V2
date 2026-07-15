@@ -1,16 +1,20 @@
 import argparse
 import math
+import os
+import sys
 import time
+
+REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 from unitree_sdk2py.go2.obstacles_avoid.obstacles_avoid_client import ObstaclesAvoidClient
 from unitree_sdk2py.go2.sport.sport_client import SportClient
+from transport.commands import ALLOWED_COMMANDS
 
 
 IFACE = "ethrobot"
-
-STAND_BEFORE_SIT = False
-STAND_BEFORE_MOVEMENT = False
 
 WALK_SPEED_MPS = 0.2
 WALK_DURATION_S = 5.0
@@ -21,29 +25,12 @@ ROTATE_CORRECTION = 1.2
 ROTATE_DURATION_S = 2.4
 TURN_AROUND_DURATION_S = 9.4
 MOVE_COMMAND_HZ = 20.0
+OBSTACLE_ENABLE_TIMEOUT_S = 5.0
 
 MIN_DISTANCE_M = 0.2
 MAX_DISTANCE_M = 2.0
 MIN_ROTATION_DEG = 10.0
 MAX_ROTATION_DEG = 180.0
-
-VALID_COMMANDS = {
-    "check",
-    "stop",
-    "stand",
-    "sit",
-    "stand_down",
-    "recover",
-    "walk_forward",
-    "walk_backward",
-    "walk_left",
-    "walk_right",
-    "rotate_left",
-    "rotate_right",
-    "turn_around",
-    "release",
-}
-
 
 def initialize_channel():
     ChannelFactoryInitialize(0, IFACE)
@@ -88,13 +75,18 @@ def enable_classic_walk(sport_client):
 
 
 def enable_obstacle_api(obstacle_client):
-    print("SwitchGet before:", obstacle_client.SwitchGet())
+    switch = obstacle_client.SwitchGet()
+    print("SwitchGet before:", switch)
+    deadline = time.monotonic() + OBSTACLE_ENABLE_TIMEOUT_S
 
-    while not obstacle_client.SwitchGet()[1]:
+    while not switch[1]:
+        if time.monotonic() >= deadline:
+            raise RuntimeError("Timed out enabling obstacle API")
         print("SwitchSet:", obstacle_client.SwitchSet(True))
         time.sleep(0.1)
+        switch = obstacle_client.SwitchGet()
 
-    print("SwitchGet after:", obstacle_client.SwitchGet())
+    print("SwitchGet after:", switch)
     print("UseRemoteCommandFromApi true:", obstacle_client.UseRemoteCommandFromApi(True))
 
 
@@ -138,12 +130,8 @@ class Go2Executor:
         self.sport_client = make_sport_client()
         self.obstacle_client = make_obstacle_client()
 
-    def prepare_stand(self):
-        print("Prepare StandUp:", self.sport_client.StandUp())
-        time.sleep(0.7)
-
     def execute(self, command, distance_m=None, degrees=None):
-        if command not in VALID_COMMANDS:
+        if command not in ALLOWED_COMMANDS:
             raise ValueError("Invalid Go2 command: {}".format(command))
 
         if command == "check":
@@ -227,13 +215,10 @@ class Go2Executor:
         return "ERROR unhandled {}".format(command)
 
     def walk(self, vx, vy, vyaw, duration_s):
-        if STAND_BEFORE_MOVEMENT:
-            self.prepare_stand()
-
         enable_classic_walk(self.sport_client)
-        enable_obstacle_api(self.obstacle_client)
 
         try:
+            enable_obstacle_api(self.obstacle_client)
             repeated_obstacle_move(
                 self.obstacle_client,
                 vx=vx,
@@ -248,7 +233,7 @@ class Go2Executor:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=sorted(VALID_COMMANDS))
+    parser.add_argument("command", choices=sorted(ALLOWED_COMMANDS))
     parser.add_argument("--distance-m", type=float, default=None)
     parser.add_argument("--degrees", type=float, default=None)
     args = parser.parse_args()

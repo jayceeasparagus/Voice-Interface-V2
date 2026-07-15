@@ -6,6 +6,9 @@ except ModuleNotFoundError:
     from commands import is_allowed_command, normalize_command
 
 
+MAX_MESSAGE_BYTES = 65536
+
+
 def action_from_item(item):
     if isinstance(item, dict):
         return normalize_command(item.get("command"))
@@ -48,6 +51,24 @@ def encode_message(message):
     return (json.dumps(message) + "\n").encode("utf-8")
 
 
+def receive_line(sock):
+    data = bytearray()
+
+    while b"\n" not in data:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+
+        data.extend(chunk)
+        if len(data) > MAX_MESSAGE_BYTES:
+            raise ValueError("Command message is too large")
+
+    if not data:
+        raise ConnectionError("Connection closed without a message")
+
+    return bytes(data).split(b"\n", 1)[0]
+
+
 def decode_message(raw_text):
     text = raw_text.strip()
     if not text:
@@ -57,7 +78,7 @@ def decode_message(raw_text):
         action = normalize_command(text)
         if not is_allowed_command(action):
             raise ValueError("Invalid command: {}".format(action))
-        return [{"command": action}]
+        return [{"command": action, "params": {}}]
 
     message = json.loads(text)
 

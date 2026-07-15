@@ -1,7 +1,8 @@
+import socket
 import unittest
 
 from mapping.sqlite_mapper import SqliteCommandMapper
-from transport.protocol import build_message, decode_message
+from transport.protocol import build_message, decode_message, receive_line
 
 
 class PipelineTests(unittest.TestCase):
@@ -40,6 +41,16 @@ class PipelineTests(unittest.TestCase):
     def test_protocol_decodes_plain_command_for_manual_testing(self):
         commands = decode_message("sit")
         self.assertEqual(commands, [{"command": "sit", "params": {}}])
+
+    def test_receive_line_handles_split_tcp_message(self):
+        sender, receiver = socket.socketpair()
+        try:
+            sender.sendall(b'{"command":')
+            sender.sendall(b'"sit"}\n')
+            self.assertEqual(receive_line(receiver), b'{"command":"sit"}')
+        finally:
+            sender.close()
+            receiver.close()
 
 
 if __name__ == "__main__":

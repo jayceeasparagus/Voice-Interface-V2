@@ -24,17 +24,18 @@ Current audio entry point:
 python3 -m audio.listener
 ```
 
-Wake word is controlled in `audio/config.py`:
+Wake words are controlled near the top of `audio/listener.py`:
 
 ```python
 WAKE_WORD_ENABLED = True
-WAKE_WORD = "dog"
 WAKE_WORDS = ["dog", "dogs"]
 ```
 
 For testing without a wake word:
 
-set `WAKE_WORD_ENABLED = False` in `audio/config.py`, then run the listener again.
+```sh
+python3 -m audio.listener --no-wake-word
+```
 
 `mapping/`
 
@@ -97,7 +98,7 @@ Design notes, planning, and setup notes.
 
 `tests/`
 
-Future tests for each module.
+Focused tests for mapping and the TCP command protocol.
 
 ## End-to-End Testing
 

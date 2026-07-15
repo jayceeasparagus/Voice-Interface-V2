@@ -12,11 +12,13 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from transport import config
-from transport.protocol import decode_message
+from transport.protocol import decode_message, receive_line
 
 
 GO2_EXECUTOR_PATH = os.path.join(REPO_ROOT, "dog", "go2_executor.py")
 COMMAND_PAUSE_S = 0.5
+EXECUTOR_TIMEOUT_S = 30
+CLIENT_TIMEOUT_S = 5
 
 
 def dog_python_env():
@@ -64,12 +66,23 @@ class DogReceiver:
         if "degrees" in params:
             command.extend(["--degrees", str(params["degrees"])])
 
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            env=dog_python_env(),
-        )
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                env=dog_python_env(),
+                timeout=EXECUTOR_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            response = "ERROR {} timed out".format(action)
+            print(response)
+            return {
+                "command": action,
+                "params": params,
+                "ok": False,
+                "response": response,
+            }
 
         if result.stdout:
             print(result.stdout, end="")
@@ -86,7 +99,8 @@ class DogReceiver:
 
     def handle_client(self, conn, addr):
         try:
-            raw_message = conn.recv(4096).decode("utf-8", errors="replace")
+            conn.settimeout(CLIENT_TIMEOUT_S)
+            raw_message = receive_line(conn).decode("utf-8", errors="replace")
             command_items = decode_message(raw_message)
             print("Received from {}: {}".format(addr, command_items))
 
