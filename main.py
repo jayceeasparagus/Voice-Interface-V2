@@ -9,8 +9,9 @@ from transport.sender import send_commands
 
 
 class VoiceDogPipeline:
-    def __init__(self, dry_run=False):
+    def __init__(self, dry_run=False, review_logger=None):
         self.dry_run = dry_run
+        self.review_logger = review_logger
         self.mapper = SqliteCommandMapper()
         self.command_queue = queue.Queue()
         self.running = True
@@ -42,8 +43,11 @@ class VoiceDogPipeline:
                 print("\n[COMMAND WORKER ERROR]")
                 traceback.print_exc()
             finally:
+                if self.review_logger:
+                    self.review_logger.command_finished()
                 self.command_queue.task_done()
-                print("Listening for wake word...")
+                if not self.review_logger:
+                    print("Listening for wake word...")
 
     def stop(self):
         self.running = False
@@ -107,9 +111,8 @@ def main():
     )
     args = parser.parse_args()
 
-    pipeline = VoiceDogPipeline(dry_run=args.dry_run)
-
     if args.debug is not None:
+        pipeline = VoiceDogPipeline(dry_run=args.dry_run)
         pipeline.process_text(args.debug)
         return
 
@@ -117,9 +120,16 @@ def main():
     from audio.review_logger import AUDIO_REVIEW_ENABLED, AudioReviewLogger
 
     review_enabled = AUDIO_REVIEW_ENABLED and not args.no_audio_review
+    review_logger = None
     phrase_handler = None
     if review_enabled:
-        phrase_handler = AudioReviewLogger().handle_phrase
+        review_logger = AudioReviewLogger()
+        phrase_handler = review_logger.handle_phrase
+
+    pipeline = VoiceDogPipeline(
+        dry_run=args.dry_run,
+        review_logger=review_logger,
+    )
 
     listener = AudioListener(
         wake_word_enabled=WAKE_WORD_ENABLED,

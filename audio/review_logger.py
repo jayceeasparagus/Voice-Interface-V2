@@ -1,5 +1,6 @@
 import os
 import re
+import threading
 import wave
 from datetime import datetime
 
@@ -9,7 +10,7 @@ import numpy as np
 AUDIO_REVIEW_ENABLED = True
 
 YES_WORDS = {"yes", "yeah", "yep", "correct", "worked", "success"}
-NO_WORDS = {"no", "nope", "failed", "failure", "wrong"}
+NO_WORDS = {"no", "know", "nope", "failed", "failure", "wrong"}
 
 
 def clean_label(text):
@@ -24,34 +25,51 @@ class AudioReviewLogger:
         self.base_dir = base_dir or os.path.join(project_dir, "audio_debug")
         self.sample_rate = sample_rate
         self.pending_path = None
+        self.waiting_for_feedback = False
+        self.lock = threading.Lock()
 
-        self.unlabeled_dir = os.path.join(self.base_dir, "unlabeled_audio")
+        self.pending_dir = os.path.join(self.base_dir, "pending_audio")
         self.success_dir = os.path.join(self.base_dir, "success_audio")
         self.fail_dir = os.path.join(self.base_dir, "fail_audio")
 
-        for folder in (self.unlabeled_dir, self.success_dir, self.fail_dir):
-            os.makedirs(folder, exist_ok=True)
+        os.makedirs(self.pending_dir, exist_ok=True)
+        os.makedirs(self.success_dir, exist_ok=True)
+        os.makedirs(self.fail_dir, exist_ok=True)
 
     def handle_phrase(self, heard_text, command_text, audio):
-        label = self.get_label(heard_text)
+        with self.lock:
+            if self.waiting_for_feedback:
+                label = self.get_label(heard_text)
+                if label:
+                    self.label_pending_file(label)
+                else:
+                    print("\nFeedback not recognized.")
+                    print("SAY YES OR NO NOW. You can also say success or failure.\n")
+                return True
 
-        if self.pending_path and label:
-            self.move_pending_file(label)
-            return True
+            if self.pending_path:
+                print("Command is still being processed. Wait for the result prompt.")
+                return True
 
-        if self.pending_path:
-            print("Feedback not recognized. Say only yes or no.")
-            return True
+            if not command_text:
+                return True
 
-        self.pending_path = self.save_wav(heard_text, audio)
-        print("Saved audio:", self.pending_path)
-
-        if command_text:
-            print("After the command attempt, say yes or no.")
+            self.pending_path = self.save_wav(heard_text, audio)
+            print("Saved command audio:", self.pending_path)
             return False
 
-        print("No wake-word command detected. Say yes or no to label this audio.")
-        return True
+    def command_finished(self):
+        with self.lock:
+            if not self.pending_path:
+                return
+
+            self.waiting_for_feedback = True
+            print("\n========================================")
+            print("COMMAND ATTEMPT FINISHED")
+            print("Recording your result now.")
+            print("SAY YES if it worked, or NO if it failed.")
+            print("You can also say SUCCESS or FAILURE.")
+            print("========================================\n")
 
     def get_label(self, text):
         words = set(clean_label(text).split())
@@ -69,7 +87,7 @@ class AudioReviewLogger:
         short_text = clean_label(heard_text).replace(" ", "_")[:50]
         short_text = short_text or "unknown"
         filename = "{}_{}.wav".format(timestamp, short_text)
-        path = os.path.join(self.unlabeled_dir, filename)
+        path = os.path.join(self.pending_dir, filename)
 
         samples = np.clip(audio, -1.0, 1.0)
         samples = (samples * 32767).astype(np.int16)
@@ -82,11 +100,16 @@ class AudioReviewLogger:
 
         return path
 
-    def move_pending_file(self, label):
-        target_dir = self.success_dir if label == "success" else self.fail_dir
-        target_path = os.path.join(target_dir, os.path.basename(self.pending_path))
+    def label_pending_file(self, label):
+        filename = os.path.basename(self.pending_path)
+        if label == "success":
+            target_dir = self.success_dir
+        else:
+            target_dir = self.fail_dir
+
+        target_path = os.path.join(target_dir, filename)
         os.replace(self.pending_path, target_path)
         self.pending_path = None
+        self.waiting_for_feedback = False
 
         print("Audio labeled {}: {}".format(label, target_path))
-

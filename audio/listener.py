@@ -383,16 +383,34 @@ def main():
         action="store_true",
         help="Save each phrase and label it by saying yes or no.",
     )
+    parser.add_argument(
+        "--desk-test",
+        action="store_true",
+        help="Test SR80 speech and yes/no audio labels without sending to the dog.",
+    )
     args = parser.parse_args()
 
     phrase_handler = None
-    if args.review:
+    handler = None
+    if args.review or args.desk_test:
         from audio.review_logger import AudioReviewLogger
 
-        phrase_handler = AudioReviewLogger().handle_phrase
+        review_logger = AudioReviewLogger()
+        phrase_handler = review_logger.handle_phrase
+
+        def print_and_request_feedback(text):
+            print("\n----------------------------------------")
+            print("DESK TEST HEARD COMMAND:", text)
+            print("Nothing was sent to the dog.")
+            print("----------------------------------------")
+            print("TEXT:", text)
+            review_logger.command_finished()
+
+        handler = print_and_request_feedback
 
     listener = AudioListener(
         wake_word_enabled=not args.no_wake_word,
+        handler=handler,
         phrase_handler=phrase_handler,
     )
     listener.run()
