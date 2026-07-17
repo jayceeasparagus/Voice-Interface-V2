@@ -37,6 +37,32 @@ For testing without a wake word:
 python3 -m audio.listener --no-wake-word
 ```
 
+To test the SR80 audio review logger by itself:
+
+```sh
+python3 -m audio.listener --review
+```
+
+Say a command phrase, then say `yes` if the pipeline understood it or `no` if
+it did not. The command recording is moved into one of these folders:
+
+```text
+audio_debug/success_audio/
+audio_debug/fail_audio/
+```
+
+Recordings that have not been labeled remain in
+`audio_debug/unlabeled_audio/`. The normal `python3 main.py` pipeline enables
+audio review by default. Use `python3 main.py --no-audio-review` to turn it off.
+The feedback words do not need a wake word and are not sent to the dog.
+If `dog` is spoken by itself, the following command phrase is the clip that is
+saved and labeled.
+Listen to a saved clip on the SL1680 with:
+
+```sh
+aplay audio_debug/fail_audio/CLIP_NAME.wav
+```
+
 `mapping/`
 
 Processes text into robot command intent. This currently uses a lightweight

@@ -100,6 +100,11 @@ def main():
         action="store_true",
         help="Run mapping and transport validation, but do not send to the dog.",
     )
+    parser.add_argument(
+        "--no-audio-review",
+        action="store_true",
+        help="Do not save and label microphone command recordings.",
+    )
     args = parser.parse_args()
 
     pipeline = VoiceDogPipeline(dry_run=args.dry_run)
@@ -109,16 +114,24 @@ def main():
         return
 
     from audio.listener import AudioListener, WAKE_WORD_ENABLED, WAKE_WORDS
+    from audio.review_logger import AUDIO_REVIEW_ENABLED, AudioReviewLogger
+
+    review_enabled = AUDIO_REVIEW_ENABLED and not args.no_audio_review
+    phrase_handler = None
+    if review_enabled:
+        phrase_handler = AudioReviewLogger().handle_phrase
 
     listener = AudioListener(
         wake_word_enabled=WAKE_WORD_ENABLED,
         handler=pipeline.enqueue_text,
+        phrase_handler=phrase_handler,
     )
 
     print("Voice Interface V2 running.")
     print("Wake word enabled:", WAKE_WORD_ENABLED)
     print("Wake words:", ", ".join(WAKE_WORDS))
     print("Dry run:", args.dry_run)
+    print("Audio review:", review_enabled)
     print("Press Ctrl+C to stop.")
 
     try:

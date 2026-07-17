@@ -138,10 +138,18 @@ class MoonshineSTT:
 
 
 class AudioListener:
-    def __init__(self, wake_word_enabled=WAKE_WORD_ENABLED, handler=None):
+    def __init__(
+        self,
+        wake_word_enabled=WAKE_WORD_ENABLED,
+        handler=None,
+        phrase_handler=None,
+    ):
         self.wake_word_enabled = wake_word_enabled
         self.handler = handler
+        self.phrase_handler = phrase_handler
         self.waiting_for_command = False
+        self.last_audio = None
+        self.last_heard_text = None
         self.stt = MoonshineSTT()
         self.vad_model = load_silero_vad(onnx=True)
         self.vad = VADIterator(
@@ -169,6 +177,20 @@ class AudioListener:
                 time.sleep(AUDIO_RETRY_DELAY_S)
                 continue
 
+            wake_only = text is None and self.waiting_for_command
+            if (
+                self.phrase_handler
+                and self.last_heard_text is not None
+                and not wake_only
+            ):
+                handled = self.phrase_handler(
+                    self.last_heard_text,
+                    text,
+                    self.last_audio,
+                )
+                if handled:
+                    continue
+
             if not text:
                 continue
 
@@ -178,6 +200,8 @@ class AudioListener:
                 print("TEXT:", text)
 
     def listen_once(self):
+        self.last_audio = None
+        self.last_heard_text = None
         audio = self.record_one_phrase()
         if audio.size == 0 or not np.isfinite(audio).all():
             raise RuntimeError("Audio recorder returned bad data.")
@@ -187,6 +211,8 @@ class AudioListener:
         if not heard_text:
             return None
 
+        self.last_audio = audio
+        self.last_heard_text = heard_text
         print("HEARD:", heard_text)
         return self.apply_wake_word(heard_text)
 
@@ -291,6 +317,18 @@ class AudioListener:
 
         while True:
             if recorder.poll() is not None:
+                error_text = ""
+                if recorder.stderr:
+                    error_text = recorder.stderr.read().decode(errors="replace").strip()
+
+                if error_text:
+                    raise RuntimeError(
+                        "arecord stopped with code {}: {}".format(
+                            recorder.returncode,
+                            error_text,
+                        )
+                    )
+
                 raise RuntimeError(
                     "arecord stopped with code {}. Check AUDIO_DEVICE.".format(
                         recorder.returncode
@@ -340,9 +378,23 @@ def main():
         action="store_true",
         help="Print every phrase without requiring a wake word.",
     )
+    parser.add_argument(
+        "--review",
+        action="store_true",
+        help="Save each phrase and label it by saying yes or no.",
+    )
     args = parser.parse_args()
 
-    listener = AudioListener(wake_word_enabled=not args.no_wake_word)
+    phrase_handler = None
+    if args.review:
+        from audio.review_logger import AudioReviewLogger
+
+        phrase_handler = AudioReviewLogger().handle_phrase
+
+    listener = AudioListener(
+        wake_word_enabled=not args.no_wake_word,
+        phrase_handler=phrase_handler,
+    )
     listener.run()
 
 
