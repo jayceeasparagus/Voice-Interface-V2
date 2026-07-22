@@ -116,14 +116,19 @@ def main():
         pipeline.process_text(args.debug)
         return
 
-    from audio.listener import AudioListener, WAKE_WORD_ENABLED, WAKE_WORDS
+    from audio.listener import (
+        AudioListener,
+        CAPTURE_RATE,
+        WAKE_WORD_ENABLED,
+        WAKE_WORDS,
+    )
     from audio.review_logger import AUDIO_REVIEW_ENABLED, AudioReviewLogger
 
     review_enabled = AUDIO_REVIEW_ENABLED and not args.no_audio_review
     review_logger = None
     phrase_handler = None
     if review_enabled:
-        review_logger = AudioReviewLogger()
+        review_logger = AudioReviewLogger(sample_rate=CAPTURE_RATE)
         phrase_handler = review_logger.handle_phrase
 
     pipeline = VoiceDogPipeline(

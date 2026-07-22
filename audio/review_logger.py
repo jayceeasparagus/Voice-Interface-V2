@@ -20,7 +20,7 @@ def clean_label(text):
 
 
 class AudioReviewLogger:
-    def __init__(self, base_dir=None, sample_rate=16000):
+    def __init__(self, base_dir=None, sample_rate=48000):
         project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.base_dir = base_dir or os.path.join(project_dir, "audio_debug")
         self.sample_rate = sample_rate

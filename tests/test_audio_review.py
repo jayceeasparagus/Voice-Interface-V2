@@ -37,7 +37,7 @@ class AudioReviewTests(unittest.TestCase):
         self.assertEqual(len(files), 1)
 
         with wave.open(os.path.join(self.logger.success_dir, files[0]), "rb") as wav:
-            self.assertEqual(wav.getframerate(), 16000)
+            self.assertEqual(wav.getframerate(), 48000)
             self.assertEqual(wav.getnchannels(), 1)
 
     def test_no_labels_command_audio_as_fail(self):

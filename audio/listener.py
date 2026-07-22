@@ -17,9 +17,11 @@ WAKE_WORDS = ["dog", "dogs"]
 WAKE_WORD_ENABLED = True
 
 AUDIO_DEVICE = "plughw:1,0"
+CAPTURE_RATE = 48000
 SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK_SIZE = 512
+CAPTURE_CHUNK_SIZE = CHUNK_SIZE * (CAPTURE_RATE // SAMPLE_RATE)
 MAX_SPEECH_SECONDS = 12
 MOONSHINE_MODEL = "base"
 AUDIO_READ_TIMEOUT_S = 5
@@ -162,6 +164,8 @@ class AudioListener:
     def run(self):
         print("Audio test running.")
         print("Device:", AUDIO_DEVICE)
+        print("SR80 capture rate:", CAPTURE_RATE)
+        print("Moonshine input rate:", SAMPLE_RATE)
         print("Wake word enabled:", self.wake_word_enabled)
         print("Wake words:", ", ".join(WAKE_WORDS))
         print("Say a wake word plus a command, like: dog stand")
@@ -202,7 +206,7 @@ class AudioListener:
     def listen_once(self):
         self.last_audio = None
         self.last_heard_text = None
-        audio = self.record_one_phrase()
+        audio, capture_audio = self.record_one_phrase()
         if audio.size == 0 or not np.isfinite(audio).all():
             raise RuntimeError("Audio recorder returned bad data.")
 
@@ -211,7 +215,8 @@ class AudioListener:
         if not heard_text:
             return None
 
-        self.last_audio = audio
+        # Save the original 48 kHz SR80 audio for review and debugging.
+        self.last_audio = capture_audio
         self.last_heard_text = heard_text
         print("HEARD:", heard_text)
         return self.apply_wake_word(heard_text)
@@ -244,19 +249,23 @@ class AudioListener:
     def record_one_phrase(self):
         recorder = self.start_recorder()
         lookback_size = 7 * CHUNK_SIZE
+        capture_lookback_size = 7 * CAPTURE_CHUNK_SIZE
         audio = np.empty(0, dtype=np.float32)
+        capture_audio = np.empty(0, dtype=np.float32)
         recording = False
         last_message = time.time()
 
         try:
-            for chunk in self.read_chunks(recorder):
+            for chunk, capture_chunk in self.read_chunks(recorder):
                 if time.time() - last_message > 15:
                     print("Listening...")
                     last_message = time.time()
 
                 audio = np.concatenate((audio, chunk))
+                capture_audio = np.concatenate((capture_audio, capture_chunk))
                 if not recording:
                     audio = audio[-lookback_size:]
+                    capture_audio = capture_audio[-capture_lookback_size:]
 
                 event = self.vad(chunk)
 
@@ -264,10 +273,10 @@ class AudioListener:
                     recording = True
 
                 if event and "end" in event and recording:
-                    return audio
+                    return audio, capture_audio
 
                 if recording and len(audio) / SAMPLE_RATE > MAX_SPEECH_SECONDS:
-                    return audio
+                    return audio, capture_audio
         finally:
             self.stop_recorder(recorder)
             self.reset_vad()
@@ -280,7 +289,7 @@ class AudioListener:
             "-f",
             "S16_LE",
             "-r",
-            str(SAMPLE_RATE),
+            str(CAPTURE_RATE),
             "-c",
             str(CHANNELS),
         ]
@@ -289,7 +298,7 @@ class AudioListener:
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            bufsize=CHUNK_SIZE * CHANNELS * 2,
+            bufsize=CAPTURE_CHUNK_SIZE * CHANNELS * 2,
         )
 
         if recorder.stdout is None or recorder.stderr is None:
@@ -313,7 +322,7 @@ class AudioListener:
             recorder.stderr.close()
 
     def read_chunks(self, recorder):
-        read_size = CHUNK_SIZE * CHANNELS * 2
+        read_size = CAPTURE_CHUNK_SIZE * CHANNELS * 2
 
         while True:
             if recorder.poll() is not None:
@@ -359,11 +368,16 @@ class AudioListener:
             if len(raw) != read_size:
                 raise RuntimeError("arecord returned an incomplete audio chunk.")
 
-            audio = np.frombuffer(raw, dtype=np.int16)
+            capture_audio = np.frombuffer(raw, dtype=np.int16)
             if CHANNELS > 1:
-                audio = audio.reshape(-1, CHANNELS)[:, 0]
+                capture_audio = capture_audio.reshape(-1, CHANNELS)[:, 0]
 
-            yield audio.astype(np.float32) / 32768.0
+            capture_audio = capture_audio.astype(np.float32) / 32768.0
+
+            # SR80 is captured at 48 kHz. Silero VAD and Moonshine require
+            # 16 kHz, so average each group of three samples for their copy.
+            audio = capture_audio.reshape(-1, 3).mean(axis=1).astype(np.float32)
+            yield audio, capture_audio
 
     def reset_vad(self):
         self.vad.triggered = False
@@ -395,7 +409,7 @@ def main():
     if args.review or args.desk_test:
         from audio.review_logger import AudioReviewLogger
 
-        review_logger = AudioReviewLogger()
+        review_logger = AudioReviewLogger(sample_rate=CAPTURE_RATE)
         phrase_handler = review_logger.handle_phrase
 
         def print_and_request_feedback(text):
