@@ -17,30 +17,23 @@ class AudioReviewTests(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def test_yes_labels_command_audio_as_success(self):
+    def test_command_audio_goes_to_orientation_test_folder(self):
         handled = self.logger.handle_phrase(
             "Dog sit down",
             "sit down",
             self.audio,
         )
         self.assertFalse(handled)
-        self.assertTrue(os.path.exists(self.logger.pending_path))
 
-        self.logger.command_finished()
-        self.assertTrue(self.logger.waiting_for_feedback)
-
-        handled = self.logger.handle_phrase("yes", None, self.audio)
-        self.assertTrue(handled)
-        self.assertIsNone(self.logger.pending_path)
-
-        files = os.listdir(self.logger.success_dir)
+        files = os.listdir(self.logger.orientation_dir)
         self.assertEqual(len(files), 1)
+        self.assertIn("dog_sit_down", files[0])
 
-        with wave.open(os.path.join(self.logger.success_dir, files[0]), "rb") as wav:
+        with wave.open(os.path.join(self.logger.orientation_dir, files[0]), "rb") as wav:
             self.assertEqual(wav.getframerate(), 48000)
             self.assertEqual(wav.getnchannels(), 1)
 
-    def test_no_labels_command_audio_as_fail(self):
+    def test_command_finished_does_not_wait_for_feedback(self):
         handled = self.logger.handle_phrase(
             "dog please sit down",
             "please sit down",
@@ -49,19 +42,15 @@ class AudioReviewTests(unittest.TestCase):
         self.assertFalse(handled)
 
         self.logger.command_finished()
-        handled = self.logger.handle_phrase("know", None, self.audio)
-        self.assertTrue(handled)
-        files = os.listdir(self.logger.fail_dir)
+        files = os.listdir(self.logger.orientation_dir)
         self.assertEqual(len(files), 1)
 
-    def test_feedback_is_not_accepted_before_command_finishes(self):
+    def test_empty_command_text_is_ignored(self):
         self.logger.handle_phrase("dog stand", "stand", self.audio)
         handled = self.logger.handle_phrase("yes", None, self.audio)
         self.assertTrue(handled)
-        self.assertIsNotNone(self.logger.pending_path)
-        self.assertTrue(
-            self.logger.pending_path.startswith(self.logger.pending_dir)
-        )
+        files = os.listdir(self.logger.orientation_dir)
+        self.assertEqual(len(files), 1)
 
 
 if __name__ == "__main__":
