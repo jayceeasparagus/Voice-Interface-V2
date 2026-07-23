@@ -23,7 +23,7 @@ class AudioReviewLogger:
         self.sample_rate = sample_rate
         self.lock = threading.Lock()
 
-        self.orientation_dir = os.path.join(self.base_dir, "orientation test")
+        self.orientation_dir = os.path.join(self.base_dir, "orientation quiet test")
 
         os.makedirs(self.orientation_dir, exist_ok=True)
 
