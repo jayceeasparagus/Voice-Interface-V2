@@ -10,3 +10,4 @@ data/*.npz
 mapping/*.npz
 mapping/*.sqlite3
 models/
+speaker/voices/

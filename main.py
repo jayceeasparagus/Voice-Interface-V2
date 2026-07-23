@@ -5,6 +5,7 @@ import threading
 import traceback
 
 from mapping.sqlite_mapper import SqliteCommandMapper
+from speaker.speaker import print_mapping_feedback
 from transport.sender import send_commands
 
 
@@ -59,6 +60,7 @@ class VoiceDogPipeline:
         mapping_results = self.mapper.map_text(text)
         print("MAPPING:")
         print(json.dumps(mapping_results, indent=2))
+        print_mapping_feedback(mapping_results)
 
         actions = [item for item in mapping_results if item["command"] != "unknown"]
         print("ACTIONS:", actions)

@@ -90,6 +90,34 @@ Common Moonshine mishears can be configured in `mapping/fixes.py`.
 
 Liquid AI can still be added later as another mapping backend.
 
+`speaker/`
+
+Contains the future spoken feedback path. The two flags near the top of
+`speaker/speaker.py` independently control feedback for low-confidence command
+matches and speech that does not resemble a command:
+
+```python
+SPEAK_ON_LOW_CONFIDENCE = True
+SPEAK_ON_NON_COMMAND = True
+```
+
+The main pipeline currently prints what the speaker would say. To test that
+without audio:
+
+```sh
+python3 speaker/speaker.py -m "test message" --print-only
+```
+
+To test real Piper speech on the SL1680, download the voice once and then run:
+
+```sh
+python3 -m piper.download_voices --data-dir speaker/voices en_US-lessac-low
+python3 speaker/speaker.py -m "test message" -d plughw:1,0
+```
+
+The output device can be changed near the top of `speaker/speaker.py` or with
+`-d`.
+
 `transport/`
 
 Validates mapped commands and sends them from the board to the dog over the

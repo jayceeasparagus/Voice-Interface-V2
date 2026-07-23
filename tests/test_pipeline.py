@@ -1,7 +1,9 @@
 import socket
 import unittest
+from unittest.mock import patch
 
 from mapping.sqlite_mapper import SqliteCommandMapper
+from speaker.speaker import feedback_for_mapping
 from transport.protocol import build_message, decode_message, receive_line
 
 
@@ -24,6 +26,26 @@ class PipelineTests(unittest.TestCase):
         results = mapper.map_text("turn around")
         self.assertEqual(results[0]["command"], "turn_around")
         self.assertEqual(results[0]["params"]["degrees"], 180.0)
+
+    def test_low_confidence_speaker_feedback(self):
+        mapping = [{"command": "unknown", "score": 0.25}]
+        reason, _ = feedback_for_mapping(mapping)
+        self.assertEqual(reason, "low_confidence")
+
+    def test_non_command_speaker_feedback(self):
+        mapping = [{"command": "unknown", "score": 0.05}]
+        reason, _ = feedback_for_mapping(mapping)
+        self.assertEqual(reason, "non_command")
+
+    @patch("speaker.speaker.SPEAK_ON_LOW_CONFIDENCE", False)
+    def test_low_confidence_speaker_feedback_can_be_disabled(self):
+        mapping = [{"command": "unknown", "score": 0.25}]
+        self.assertIsNone(feedback_for_mapping(mapping))
+
+    @patch("speaker.speaker.SPEAK_ON_NON_COMMAND", False)
+    def test_non_command_speaker_feedback_can_be_disabled(self):
+        mapping = [{"command": "unknown", "score": 0.05}]
+        self.assertIsNone(feedback_for_mapping(mapping))
 
     def test_transport_rejects_unknown_commands(self):
         message = build_message(
