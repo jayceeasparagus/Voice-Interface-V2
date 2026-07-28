@@ -37,6 +37,20 @@ For testing without a wake word:
 python3 -m audio.listener --no-wake-word
 ```
 
+To make adaptive-gain copies of saved WAV files without changing the originals:
+
+```sh
+python3 -m audio.gain_wav /path/to/audio_folder --output-dir gain_output
+python3 -m audio.transcribe_wav gain_output
+```
+
+For a controlled fixed-gain comparison, such as +6 dB:
+
+```sh
+python3 -m audio.gain_wav /path/to/audio_folder --gain-db 6 --output-dir gain_6db
+python3 -m audio.transcribe_wav gain_6db
+```
+
 To test the SR80 audio review logger by itself:
 
 ```sh
