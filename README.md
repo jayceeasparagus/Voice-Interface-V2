@@ -51,6 +51,14 @@ python3 -m audio.gain_wav /path/to/audio_folder --gain-db 6 --output-dir gain_6d
 python3 -m audio.transcribe_wav gain_6db
 ```
 
+To test the experimental fan-profile filter on a saved 16 kHz WAV without
+changing the live pipeline:
+
+```sh
+python3 -m audio.profile_fan_filter noisy.wav filtered.wav
+python3 -m audio.transcribe_wav filtered.wav
+```
+
 To test the SR80 audio review logger by itself:
 
 ```sh

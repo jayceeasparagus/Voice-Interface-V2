@@ -1,0 +1,222 @@
+{
+  "fs": 16000,
+  "source": "/Users/praneetiddamsetty/Downloads/fan_analysis/fan_only_1s.wav",
+  "suggested_highpass_hz": 120,
+  "tones": [
+    {
+      "f0_hz": 4101.6,
+      "prominence_db": 18.9,
+      "level_db": -69.8,
+      "drift_min_hz": 4099.9,
+      "drift_max_hz": 4105.2,
+      "drift_std_hz": 1.2,
+      "suggested_Q": 35.0
+    },
+    {
+      "f0_hz": 7962.9,
+      "prominence_db": 17.9,
+      "level_db": -95.4,
+      "drift_min_hz": 7488.3,
+      "drift_max_hz": 7964.8,
+      "drift_std_hz": 190.34,
+      "suggested_Q": 10.4
+    },
+    {
+      "f0_hz": 214.8,
+      "prominence_db": 13.2,
+      "level_db": -69.5,
+      "drift_min_hz": 203.1,
+      "drift_max_hz": 215.7,
+      "drift_std_hz": 3.34,
+      "suggested_Q": 10.7
+    },
+    {
+      "f0_hz": 6882.8,
+      "prominence_db": 12.7,
+      "level_db": -85.3,
+      "drift_min_hz": 6526.4,
+      "drift_max_hz": 6883.8,
+      "drift_std_hz": 137.28,
+      "suggested_Q": 12.0
+    },
+    {
+      "f0_hz": 615.2,
+      "prominence_db": 12.6,
+      "level_db": -68.3,
+      "drift_min_hz": 589.5,
+      "drift_max_hz": 643.3,
+      "drift_std_hz": 13.12,
+      "suggested_Q": 7.1
+    },
+    {
+      "f0_hz": 1025.4,
+      "prominence_db": 11.7,
+      "level_db": -72.7,
+      "drift_min_hz": 992.2,
+      "drift_max_hz": 1040.5,
+      "drift_std_hz": 11.41,
+      "suggested_Q": 13.3
+    },
+    {
+      "f0_hz": 3281.2,
+      "prominence_db": 11.5,
+      "level_db": -73.2,
+      "drift_min_hz": 3188.8,
+      "drift_max_hz": 3320.1,
+      "drift_std_hz": 37.37,
+      "suggested_Q": 15.6
+    },
+    {
+      "f0_hz": 3896.5,
+      "prominence_db": 11.0,
+      "level_db": -75.4,
+      "drift_min_hz": 4099.9,
+      "drift_max_hz": 4105.2,
+      "drift_std_hz": 1.2,
+      "suggested_Q": 35.0
+    },
+    {
+      "f0_hz": 845.7,
+      "prominence_db": 10.9,
+      "level_db": -63.8,
+      "drift_min_hz": 805.4,
+      "drift_max_hz": 846.0,
+      "drift_std_hz": 11.36,
+      "suggested_Q": 13.0
+    },
+    {
+      "f0_hz": 818.4,
+      "prominence_db": 9.6,
+      "level_db": -64.6,
+      "drift_min_hz": 769.5,
+      "drift_max_hz": 846.0,
+      "drift_std_hz": 21.64,
+      "suggested_Q": 6.7
+    }
+  ],
+  "bpf_candidates": [
+    {
+      "f0": 207.0,
+      "n_harmonics": 4,
+      "score": 47.1,
+      "matched": [
+        [
+          1,
+          214.8
+        ],
+        [
+          3,
+          615.2
+        ],
+        [
+          4,
+          818.4
+        ],
+        [
+          5,
+          1025.4
+        ]
+      ]
+    },
+    {
+      "f0": 810.5,
+      "n_harmonics": 3,
+      "score": 40.0,
+      "matched": [
+        [
+          1,
+          818.4
+        ],
+        [
+          4,
+          3281.2
+        ],
+        [
+          5,
+          4101.6
+        ]
+      ]
+    },
+    {
+      "f0": 4066.4,
+      "n_harmonics": 2,
+      "score": 36.8,
+      "matched": [
+        [
+          1,
+          4101.6
+        ],
+        [
+          2,
+          7962.9
+        ]
+      ]
+    },
+    {
+      "f0": 1025.4,
+      "n_harmonics": 2,
+      "score": 30.6,
+      "matched": [
+        [
+          1,
+          1025.4
+        ],
+        [
+          4,
+          4101.6
+        ]
+      ]
+    },
+    {
+      "f0": 3886.7,
+      "n_harmonics": 2,
+      "score": 28.9,
+      "matched": [
+        [
+          1,
+          3896.5
+        ],
+        [
+          2,
+          7962.9
+        ]
+      ]
+    }
+  ],
+  "stationarity_db": 5.03,
+  "notches": [
+    {
+      "f0": 214.8,
+      "Q": 15
+    },
+    {
+      "f0": 615.2,
+      "Q": 25
+    },
+    {
+      "f0": 818.4,
+      "Q": 25
+    },
+    {
+      "f0": 1025.4,
+      "Q": 25
+    },
+    {
+      "f0": 3281.2,
+      "Q": 30
+    },
+    {
+      "f0": 3896.5,
+      "Q": 30
+    },
+    {
+      "f0": 4101.6,
+      "Q": 35
+    },
+    {
+      "f0": 6882.8,
+      "Q": 30
+    }
+  ],
+  "note": "notch frequencies re-centred on tones confirmed against held-out fan-only audio; 7963 Hz left to the Wiener stage (iirnotch bandwidth is unreliable near Nyquist)"
+}
