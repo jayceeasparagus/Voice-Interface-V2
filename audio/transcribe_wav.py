@@ -5,7 +5,7 @@ import wave
 
 import numpy as np
 
-from audio.listener import MoonshineSTT, SAMPLE_RATE
+from audio.listener import SAMPLE_RATE, STT_BACKEND, create_stt
 
 
 def read_wav(path):
@@ -26,7 +26,7 @@ def read_wav(path):
     return audio, sample_rate
 
 
-def resample_to_moonshine(audio, sample_rate):
+def resample_audio(audio, sample_rate):
     if sample_rate == SAMPLE_RATE:
         return audio.astype(np.float32)
 
@@ -48,8 +48,14 @@ def find_wavs(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Moonshine on saved WAV files.")
+    parser = argparse.ArgumentParser(description="Run speech-to-text on saved WAV files.")
     parser.add_argument("path", help="A WAV file or a folder of WAV files.")
+    parser.add_argument(
+        "--stt",
+        choices=("whisper", "moonshine"),
+        default=STT_BACKEND,
+        help="Speech-to-text backend. Default: %(default)s.",
+    )
     args = parser.parse_args()
 
     wav_paths = find_wavs(args.path)
@@ -57,12 +63,12 @@ def main():
         print("No WAV files found.")
         return
 
-    stt = MoonshineSTT()
+    stt = create_stt(args.stt)
 
     for path in wav_paths:
         try:
             audio, sample_rate = read_wav(path)
-            audio = resample_to_moonshine(audio, sample_rate)
+            audio = resample_audio(audio, sample_rate)
             text = stt.transcribe(audio)
             print("{} -> {}".format(os.path.basename(path), text))
         except Exception as error:

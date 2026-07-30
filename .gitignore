@@ -11,3 +11,4 @@ mapping/*.npz
 mapping/*.sqlite3
 models/
 speaker/voices/
+.tmp_moonshine_deps/

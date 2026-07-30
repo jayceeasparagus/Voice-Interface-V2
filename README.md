@@ -15,13 +15,67 @@ Audio
 
 `audio/`
 
-Processes speech into text. This is where microphone input, Moonshine
-speech-to-text, and future SR80 audio features belong.
+Processes speech into text. Whisper is the current test backend. Moonshine is
+still available for direct comparisons.
 
 Current audio entry point:
 
 ```sh
 python3 -m audio.listener
+```
+
+The default Whisper files are kept outside this repository:
+
+```text
+/home/aicps/whisper_test/whisper.cpp/build/bin/whisper-cli
+/home/aicps/whisper_test/whisper.cpp/models/ggml-base.en.bin
+```
+
+If your files are elsewhere, set their paths before running:
+
+```sh
+export WHISPER_CLI_PATH=/path/to/whisper-cli
+export WHISPER_MODEL_PATH=/path/to/ggml-base.en.bin
+```
+
+Test live Whisper transcription without sending anything to the dog:
+
+```sh
+python3 -m audio.listener --stt whisper --no-wake-word
+```
+
+Test a saved file or folder with Whisper:
+
+```sh
+python3 -m audio.transcribe_wav /path/to/audio.wav --stt whisper
+python3 -m audio.transcribe_wav /path/to/audio_folder --stt whisper
+```
+
+Compare the same tests with Moonshine:
+
+```sh
+python3 -m audio.listener --stt moonshine --no-wake-word
+python3 -m audio.transcribe_wav /path/to/audio.wav --stt moonshine
+```
+
+Test Whisper inside the pipeline without sending commands to the dog:
+
+```sh
+python3 main.py --stt whisper --dry-run --no-audio-review
+```
+
+Run the normal live pipeline with Whisper:
+
+```sh
+python3 main.py --stt whisper --no-audio-review
+```
+
+Whisper is the default, so the board service uses it after the repository is
+updated and the service is restarted. No service file needs to be replaced:
+
+```sh
+systemctl restart board-voice.service
+journalctl -u board-voice.service -f
 ```
 
 Wake words are controlled near the top of `audio/listener.py`:

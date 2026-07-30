@@ -4,7 +4,9 @@ import os
 import re
 import select
 import subprocess
+import tempfile
 import time
+import wave
 
 import numpy as np
 import onnxruntime
@@ -24,6 +26,17 @@ CHUNK_SIZE = 512
 CAPTURE_CHUNK_SIZE = CHUNK_SIZE * (CAPTURE_RATE // SAMPLE_RATE)
 MAX_SPEECH_SECONDS = 12
 MOONSHINE_MODEL = "base"
+STT_BACKEND = os.environ.get("VOICE_STT_BACKEND", "whisper").lower()
+WHISPER_CLI = os.environ.get(
+    "WHISPER_CLI_PATH",
+    "/home/aicps/whisper_test/whisper.cpp/build/bin/whisper-cli",
+)
+WHISPER_MODEL = os.environ.get(
+    "WHISPER_MODEL_PATH",
+    "/home/aicps/whisper_test/whisper.cpp/models/ggml-base.en.bin",
+)
+WHISPER_THREADS = 4
+WHISPER_TIMEOUT_S = 45
 AUDIO_READ_TIMEOUT_S = 5
 AUDIO_RETRY_DELAY_S = 1
 
@@ -139,12 +152,90 @@ class MoonshineSTT:
         return generated_tokens
 
 
+class WhisperSTT:
+    def __init__(self, cli_path=WHISPER_CLI, model_path=WHISPER_MODEL):
+        self.cli_path = cli_path
+        self.model_path = model_path
+
+        if not os.path.isfile(self.cli_path):
+            raise FileNotFoundError(
+                "Whisper executable not found: {}".format(self.cli_path)
+            )
+        if not os.path.isfile(self.model_path):
+            raise FileNotFoundError("Whisper model not found: {}".format(self.model_path))
+
+    def transcribe(self, audio):
+        audio = np.asarray(audio, dtype=np.float32)
+        if audio.size == 0:
+            return ""
+
+        with tempfile.TemporaryDirectory(prefix="voice_whisper_") as temp_dir:
+            wav_path = os.path.join(temp_dir, "phrase.wav")
+            output_base = os.path.join(temp_dir, "transcript")
+            output_path = output_base + ".txt"
+            self.write_wav(wav_path, audio)
+
+            command = [
+                self.cli_path,
+                "-m",
+                self.model_path,
+                "-f",
+                wav_path,
+                "-l",
+                "en",
+                "-t",
+                str(WHISPER_THREADS),
+                "-nt",
+                "-otxt",
+                "-of",
+                output_base,
+            ]
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=WHISPER_TIMEOUT_S,
+            )
+            if result.returncode != 0:
+                error_text = result.stderr.strip() or result.stdout.strip()
+                raise RuntimeError(
+                    "Whisper stopped with code {}: {}".format(
+                        result.returncode,
+                        error_text,
+                    )
+                )
+            if not os.path.isfile(output_path):
+                raise RuntimeError("Whisper did not create a transcript file.")
+
+            with open(output_path, "r", encoding="utf-8") as file:
+                return file.read().strip()
+
+    @staticmethod
+    def write_wav(path, audio):
+        samples = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16)
+        with wave.open(path, "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(SAMPLE_RATE)
+            wav_file.writeframes(samples.tobytes())
+
+
+def create_stt(backend=STT_BACKEND):
+    backend = backend.lower()
+    if backend == "whisper":
+        return WhisperSTT()
+    if backend == "moonshine":
+        return MoonshineSTT()
+    raise ValueError("STT backend must be 'whisper' or 'moonshine'.")
+
+
 class AudioListener:
     def __init__(
         self,
         wake_word_enabled=WAKE_WORD_ENABLED,
         handler=None,
         phrase_handler=None,
+        stt_backend=STT_BACKEND,
     ):
         self.wake_word_enabled = wake_word_enabled
         self.handler = handler
@@ -152,7 +243,8 @@ class AudioListener:
         self.waiting_for_command = False
         self.last_audio = None
         self.last_heard_text = None
-        self.stt = MoonshineSTT()
+        self.stt_backend = stt_backend.lower()
+        self.stt = create_stt(self.stt_backend)
         self.vad_model = load_silero_vad(onnx=True)
         self.vad = VADIterator(
             model=self.vad_model,
@@ -165,7 +257,8 @@ class AudioListener:
         print("Audio test running.")
         print("Device:", AUDIO_DEVICE)
         print("SR80 capture rate:", CAPTURE_RATE)
-        print("Moonshine input rate:", SAMPLE_RATE)
+        print("STT backend:", self.stt_backend)
+        print("STT input rate:", SAMPLE_RATE)
         print("Wake word enabled:", self.wake_word_enabled)
         print("Wake words:", ", ".join(WAKE_WORDS))
         print("Say a wake word plus a command, like: dog stand")
@@ -393,6 +486,12 @@ def main():
         help="Print every phrase without requiring a wake word.",
     )
     parser.add_argument(
+        "--stt",
+        choices=("whisper", "moonshine"),
+        default=STT_BACKEND,
+        help="Speech-to-text backend. Default: %(default)s.",
+    )
+    parser.add_argument(
         "--review",
         action="store_true",
         help="Save each phrase and label it by saying yes or no.",
@@ -426,6 +525,7 @@ def main():
         wake_word_enabled=not args.no_wake_word,
         handler=handler,
         phrase_handler=phrase_handler,
+        stt_backend=args.stt,
     )
     listener.run()
 

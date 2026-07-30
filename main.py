@@ -111,6 +111,12 @@ def main():
         action="store_true",
         help="Do not save and label microphone command recordings.",
     )
+    parser.add_argument(
+        "--stt",
+        choices=("whisper", "moonshine"),
+        default=None,
+        help="Speech-to-text backend. Defaults to VOICE_STT_BACKEND or whisper.",
+    )
     args = parser.parse_args()
 
     if args.debug is not None:
@@ -121,6 +127,7 @@ def main():
     from audio.listener import (
         AudioListener,
         CAPTURE_RATE,
+        STT_BACKEND,
         WAKE_WORD_ENABLED,
         WAKE_WORDS,
     )
@@ -142,11 +149,13 @@ def main():
         wake_word_enabled=WAKE_WORD_ENABLED,
         handler=pipeline.enqueue_text,
         phrase_handler=phrase_handler,
+        stt_backend=args.stt or STT_BACKEND,
     )
 
     print("Voice Interface V2 running.")
     print("Wake word enabled:", WAKE_WORD_ENABLED)
     print("Wake words:", ", ".join(WAKE_WORDS))
+    print("STT backend:", args.stt or STT_BACKEND)
     print("Dry run:", args.dry_run)
     print("Audio review:", review_enabled)
     print("Press Ctrl+C to stop.")
